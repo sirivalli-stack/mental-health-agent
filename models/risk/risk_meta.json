@@ -1,0 +1,135 @@
+{
+  "version": 1,
+  "task": "binary risk detection",
+  "labels": [
+    "suicide",
+    "non-suicide"
+  ],
+  "positive_label": "suicide",
+  "dataset": "D3",
+  "dataset_identifier": "vibhorag101/suicide_prediction_dataset_phr",
+  "preprocess": "app.training.text_normalise.normalise_tweet",
+  "fit_scope": "train_split (fit+validation)",
+  "split_protocol": {
+    "parent": "train",
+    "method": "stratified train_test_split",
+    "val_fraction": 0.1,
+    "seed": 42,
+    "test_policy": "evaluated exactly once, never used for selection"
+  },
+  "best_params": {
+    "C": 4.0,
+    "class_weight": null
+  },
+  "selection": [
+    {
+      "params": {
+        "C": 1.0,
+        "class_weight": null
+      },
+      "validation_macro_f1": 0.9403478035893011,
+      "validation_accuracy": 0.9403491755577109,
+      "train_seconds": 56.89,
+      "n_iter": 30
+    },
+    {
+      "params": {
+        "C": 4.0,
+        "class_weight": null
+      },
+      "validation_macro_f1": 0.9442283402673545,
+      "validation_accuracy": 0.9442289039767217,
+      "train_seconds": 63.33,
+      "n_iter": 69
+    },
+    {
+      "params": {
+        "C": 1.0,
+        "class_weight": "balanced"
+      },
+      "validation_macro_f1": 0.9401320662482346,
+      "validation_accuracy": 0.9401336350899882,
+      "train_seconds": 55.07,
+      "n_iter": 20
+    },
+    {
+      "params": {
+        "C": 4.0,
+        "class_weight": "balanced"
+      },
+      "validation_macro_f1": 0.9419645115651145,
+      "validation_accuracy": 0.941965729065632,
+      "train_seconds": 54.99,
+      "n_iter": 23
+    }
+  ],
+  "test_metrics": {
+    "n_samples": 46394,
+    "accuracy": 0.9420830279777558,
+    "macro_precision": 0.9421043030585828,
+    "macro_recall": 0.9420735789916117,
+    "macro_f1": 0.9420809632764515,
+    "weighted_f1": 0.9420820217153872,
+    "per_class": {
+      "suicide": {
+        "precision": 0.9445000217476404,
+        "recall": 0.9389864222087694,
+        "f1": 0.9417351518962639,
+        "support": 23126
+      },
+      "non-suicide": {
+        "precision": 0.9397085843695253,
+        "recall": 0.9451607357744541,
+        "f1": 0.942426774656639,
+        "support": 23268
+      }
+    },
+    "label_order": [
+      "suicide",
+      "non-suicide"
+    ],
+    "confusion_matrix": [
+      [
+        21715,
+        1411
+      ],
+      [
+        1276,
+        21992
+      ]
+    ],
+    "class_share": {
+      "suicide": 0.4985,
+      "non-suicide": 0.5015
+    }
+  },
+  "split_sizes": {
+    "train": 185574,
+    "test": 46394
+  },
+  "effective_sizes": {
+    "fit": 167016,
+    "validation": 18558,
+    "test": 46394
+  },
+  "label_distribution": {
+    "fit": {
+      "suicide": 83600,
+      "non-suicide": 83416
+    },
+    "validation": {
+      "suicide": 9289,
+      "non-suicide": 9269
+    },
+    "test": {
+      "suicide": 23126,
+      "non-suicide": 23268
+    }
+  },
+  "trained_at": "2026-09-27T15:46:46.038445+00:00",
+  "pipeline_file": "risk_pipeline.joblib",
+  "pipeline_size_mb": 2.295,
+  "selection_seconds": 254.88,
+  "total_seconds": 306.69,
+  "device_note": "CPU-only training (scikit-learn) in this environment."
+}

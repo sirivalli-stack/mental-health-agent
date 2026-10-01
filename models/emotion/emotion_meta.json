@@ -1,0 +1,247 @@
+{
+  "version": 1,
+  "task": "7-class Ekman emotion classification",
+  "labels": [
+    "anger",
+    "disgust",
+    "fear",
+    "joy",
+    "neutral",
+    "sadness",
+    "surprise"
+  ],
+  "dataset": "D2",
+  "dataset_identifier": "google-research-datasets/go_emotions",
+  "fine_label_count": 28,
+  "label_grouping": "GoEmotions official Ekman mapping",
+  "mapping_source": "https://github.com/google-research/google-research/blob/master/goemotions/data/ekman_mapping.json",
+  "mapping_citation": "Demszky et al., GoEmotions, ACL 2020 (arXiv:2005.00547)",
+  "preprocess": "app.training.text_normalise.normalise_tweet",
+  "fit_scope": "train+validation",
+  "best_params": {
+    "C": 1.0,
+    "class_weight": "balanced"
+  },
+  "selection": [
+    {
+      "params": {
+        "C": 1.0,
+        "class_weight": null
+      },
+      "validation_macro_f1": 0.46134212617721476,
+      "validation_accuracy": 0.627528583992964,
+      "train_seconds": 4.48,
+      "n_iter": 138
+    },
+    {
+      "params": {
+        "C": 4.0,
+        "class_weight": null
+      },
+      "validation_macro_f1": 0.5213945679335587,
+      "validation_accuracy": 0.6242304309586632,
+      "train_seconds": 6.11,
+      "n_iter": 200
+    },
+    {
+      "params": {
+        "C": 1.0,
+        "class_weight": "balanced"
+      },
+      "validation_macro_f1": 0.5293595318105303,
+      "validation_accuracy": 0.6018029903254177,
+      "train_seconds": 3.7,
+      "n_iter": 101
+    },
+    {
+      "params": {
+        "C": 4.0,
+        "class_weight": "balanced"
+      },
+      "validation_macro_f1": 0.5277295303640466,
+      "validation_accuracy": 0.6035620052770448,
+      "train_seconds": 6.03,
+      "n_iter": 193
+    }
+  ],
+  "test_metrics": {
+    "n_samples": 4590,
+    "accuracy": 0.6010893246187364,
+    "macro_precision": 0.519032460611461,
+    "macro_recall": 0.5848675373576354,
+    "macro_f1": 0.5439516071697541,
+    "weighted_f1": 0.6111475384950401,
+    "per_class": {
+      "anger": {
+        "precision": 0.40654205607476634,
+        "recall": 0.5019230769230769,
+        "f1": 0.44922547332185886,
+        "support": 520
+      },
+      "disgust": {
+        "precision": 0.45555555555555555,
+        "recall": 0.5394736842105263,
+        "f1": 0.4939759036144578,
+        "support": 76
+      },
+      "fear": {
+        "precision": 0.48672566371681414,
+        "recall": 0.7142857142857143,
+        "f1": 0.5789473684210527,
+        "support": 77
+      },
+      "joy": {
+        "precision": 0.8245341614906833,
+        "recall": 0.662507797878977,
+        "f1": 0.7346938775510204,
+        "support": 1603
+      },
+      "neutral": {
+        "precision": 0.6249180327868853,
+        "recall": 0.5933997509339975,
+        "f1": 0.6087511977004152,
+        "support": 1606
+      },
+      "sadness": {
+        "precision": 0.42452830188679247,
+        "recall": 0.5212355212355212,
+        "f1": 0.4679376083188908,
+        "support": 259
+      },
+      "surprise": {
+        "precision": 0.41042345276872966,
+        "recall": 0.5612472160356348,
+        "f1": 0.47412982126058323,
+        "support": 449
+      }
+    },
+    "label_order": [
+      "anger",
+      "disgust",
+      "fear",
+      "joy",
+      "neutral",
+      "sadness",
+      "surprise"
+    ],
+    "confusion_matrix": [
+      [
+        261,
+        14,
+        9,
+        30,
+        126,
+        29,
+        51
+      ],
+      [
+        16,
+        41,
+        2,
+        2,
+        10,
+        3,
+        2
+      ],
+      [
+        4,
+        3,
+        55,
+        3,
+        6,
+        6,
+        0
+      ],
+      [
+        105,
+        5,
+        14,
+        1062,
+        279,
+        45,
+        93
+      ],
+      [
+        197,
+        18,
+        19,
+        142,
+        953,
+        80,
+        197
+      ],
+      [
+        26,
+        3,
+        6,
+        19,
+        51,
+        135,
+        19
+      ],
+      [
+        33,
+        6,
+        8,
+        30,
+        100,
+        20,
+        252
+      ]
+    ],
+    "class_share": {
+      "anger": 0.1133,
+      "disgust": 0.0166,
+      "fear": 0.0168,
+      "joy": 0.3492,
+      "neutral": 0.3499,
+      "sadness": 0.0564,
+      "surprise": 0.0978
+    }
+  },
+  "split_sizes": {
+    "train": 36308,
+    "validation": 4548,
+    "test": 4590
+  },
+  "effective_sizes": {
+    "train": 36308,
+    "validation": 4548,
+    "test": 4590
+  },
+  "label_distribution": {
+    "train": {
+      "anger": 3878,
+      "disgust": 498,
+      "fear": 515,
+      "joy": 12920,
+      "neutral": 12823,
+      "sadness": 2121,
+      "surprise": 3553
+    },
+    "validation": {
+      "anger": 485,
+      "disgust": 61,
+      "fear": 66,
+      "joy": 1668,
+      "neutral": 1592,
+      "sadness": 241,
+      "surprise": 435
+    },
+    "test": {
+      "anger": 520,
+      "disgust": 76,
+      "fear": 77,
+      "joy": 1603,
+      "neutral": 1606,
+      "sadness": 259,
+      "surprise": 449
+    }
+  },
+  "trained_at": "2026-09-27T15:16:54.003654+00:00",
+  "pipeline_file": "emotion_pipeline.joblib",
+  "pipeline_size_mb": 1.963,
+  "selection_seconds": 25.5,
+  "total_seconds": 30.16,
+  "device_note": "CPU-only training (scikit-learn) in this environment."
+}

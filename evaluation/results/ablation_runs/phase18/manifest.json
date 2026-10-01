@@ -1,0 +1,25 @@
+{
+  "run_id": "phase18",
+  "created_at": "2026-09-28T20:17:50.311460+00:00",
+  "harness_version": 1,
+  "profiles": [
+    "A",
+    "B",
+    "C",
+    "D"
+  ],
+  "scenario_count": 6,
+  "turns_per_profile": 19,
+  "total_records": 76,
+  "scenarios_path": "C:\\Users\\sirib\\OneDrive\\Desktop\\mental-health-agent\\evaluation\\datasets\\scenarios.json",
+  "scenarios_sha256": "abf19b17d65a907b948cdecc618a00bcc957572063ae315e54d00374c0978caf",
+  "fake_llm": false,
+  "judge": false,
+  "app_version": "0.1.0",
+  "llm_model": "llama3.1:8b-instruct-q4_K_M",
+  "llm_temperature": 0.4,
+  "max_message_chars": 4000,
+  "pre_safety_enabled": true,
+  "post_safety_enabled": true,
+  "disclaimer": "Research prototype only. Not a medical device, not a diagnostic system, and not a replacement for a mental-health professional."
+}

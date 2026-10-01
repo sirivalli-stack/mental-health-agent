@@ -1,0 +1,163 @@
+{
+  "generated_at": "2026-09-27T14:29:51.569992+00:00",
+  "phase": 3,
+  "dataset": {
+    "key": "D1",
+    "identifier": "cardiffnlp/tweet_eval",
+    "config": "sentiment",
+    "split": "test",
+    "rows": 12284,
+    "labels": [
+      "negative",
+      "neutral",
+      "positive"
+    ],
+    "class_distribution": {
+      "negative": 3972,
+      "neutral": 5937,
+      "positive": 2375
+    }
+  },
+  "primary_metric": "macro_f1",
+  "preprocess": "app.training.text_normalise.normalise_tweet",
+  "models": {
+    "trained": {
+      "requested_backend": "trained",
+      "resolved_backend": "trained",
+      "model": "cardiffnlp/tweet_eval",
+      "trained_params": {
+        "C": 4.0,
+        "class_weight": "balanced"
+      },
+      "bundle_trained_at": "2026-09-27T14:19:06.853532+00:00",
+      "model_size_mb": 1.864,
+      "load_seconds": 0.855,
+      "predict_seconds": 4.027,
+      "ms_per_sample": 0.328,
+      "metrics": {
+        "n_samples": 12284,
+        "accuracy": 0.5867795506349723,
+        "macro_precision": 0.5768386776869794,
+        "macro_recall": 0.5935666761021466,
+        "macro_f1": 0.5835244141154288,
+        "weighted_f1": 0.5872965690859545,
+        "per_class": {
+          "negative": {
+            "precision": 0.5634398496240601,
+            "recall": 0.6037260825780463,
+            "f1": 0.5828877005347594,
+            "support": 3972
+          },
+          "neutral": {
+            "precision": 0.6316779533483823,
+            "recall": 0.5656055246757622,
+            "f1": 0.5968186261441394,
+            "support": 5937
+          },
+          "positive": {
+            "precision": 0.5353982300884956,
+            "recall": 0.6113684210526316,
+            "f1": 0.5708669156673875,
+            "support": 2375
+          }
+        },
+        "label_order": [
+          "negative",
+          "neutral",
+          "positive"
+        ],
+        "confusion_matrix": [
+          [
+            2398,
+            1275,
+            299
+          ],
+          [
+            1618,
+            3358,
+            961
+          ],
+          [
+            240,
+            683,
+            1452
+          ]
+        ]
+      }
+    },
+    "pretrained": {
+      "requested_backend": "pretrained",
+      "resolved_backend": "pretrained",
+      "model": "cardiffnlp/twitter-roberta-base-sentiment-latest",
+      "trained_params": {
+        "C": 4.0,
+        "class_weight": "balanced"
+      },
+      "bundle_trained_at": "2026-09-27T14:19:06.853532+00:00",
+      "model_size_mb": null,
+      "load_seconds": 162.504,
+      "predict_seconds": 439.996,
+      "ms_per_sample": 35.819,
+      "metrics": {
+        "n_samples": 12284,
+        "accuracy": 0.7228915662650602,
+        "macro_precision": 0.720677877218041,
+        "macro_recall": 0.7324555609558033,
+        "macro_f1": 0.7242989379016271,
+        "weighted_f1": 0.7219498799734477,
+        "per_class": {
+          "negative": {
+            "precision": 0.6911414338314923,
+            "recall": 0.80337361530715,
+            "f1": 0.7430434276400046,
+            "support": 3972
+          },
+          "neutral": {
+            "precision": 0.7530395136778115,
+            "recall": 0.6676772780865757,
+            "f1": 0.7077939469690206,
+            "support": 5937
+          },
+          "positive": {
+            "precision": 0.717852684144819,
+            "recall": 0.7263157894736842,
+            "f1": 0.722059439095856,
+            "support": 2375
+          }
+        },
+        "label_order": [
+          "negative",
+          "neutral",
+          "positive"
+        ],
+        "confusion_matrix": [
+          [
+            3191,
+            726,
+            55
+          ],
+          [
+            1350,
+            3964,
+            623
+          ],
+          [
+            76,
+            574,
+            1725
+          ]
+        ]
+      }
+    }
+  },
+  "decision": {
+    "criterion": "highest macro-F1 on the identical D1 test rows; ties broken by lower per-sample latency",
+    "selected": "pretrained",
+    "margin_macro_f1": 0.140775,
+    "notes": [
+      "Both backends are scored against the same label space and the same test rows; no test row was used for fitting or selection.",
+      "Pretrained weights are used as-is: no fine-tuning was performed."
+    ]
+  },
+  "disclaimer": "Research prototype only. Not a medical device, not a diagnostic system, and not a replacement for a mental-health professional."
+}

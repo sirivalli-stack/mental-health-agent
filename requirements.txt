@@ -1,0 +1,36 @@
+# Root dependency manifest - Python 3.12
+# (mirrors backend/requirements.txt, the manifest the backend uses)
+# Phase 1
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+pydantic==2.13.5
+pydantic-settings==2.15.0
+python-dotenv==1.2.2
+httpx==0.28.1
+pytest==9.1.1
+pytest-cov==7.1.0
+
+# Phase 2 - dataset loading / inspection
+datasets==3.6.0
+pyarrow==25.0.1
+openpyxl==3.1.5
+pandas==2.2.3
+numpy==1.26.4
+
+# Phase 3 - sentiment module (training + inference)
+# Installed as the CPU build: PyPI ships torch-2.14.0-cp312-win_amd64.whl,
+# which is CPU-only. The CUDA wheel (torch-2.14.0+cu126, 2.6 GB) would not
+# download reliably in this environment; scikit-learn training is CPU-only
+# regardless, and the pretrained transformer runs fine on CPU.
+torch==2.14.0
+transformers==5.17.0
+accelerate==1.15.0
+joblib==1.5.3
+
+# Later phases (already present; keep pinned)
+scikit-learn==1.6.1
+SQLAlchemy==2.0.52
+
+# Phase 18 (experiments) needed no extra dependency:
+# the harness/judge/analysis emit JSON and use scipy (scikit-learn's
+# dependency) for the paired Wilcoxon - no plotting library required.

@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.coverage
+htmlcov/
+
+# Secrets & local env
+.env
+backend/.env
+
+# Artifacts
+logs/
+*.log
+models/*.bin
+models/*.safetensors
+models/*.pt
+models/*.gguf
+!models/.gitkeep
+
+# Large / regenerable data
+data/raw/*
+data/processed/*
+data/memory/
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+# Measured results are evidence: keep metrics/coverage reports and the
+# archived ablation runs, ignore anything else dumped in results/
+evaluation/results/*
+!evaluation/results/.gitkeep
+!evaluation/results/*.json
+!evaluation/results/*.txt
+!evaluation/results/ablation_runs/
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/*.db-journal

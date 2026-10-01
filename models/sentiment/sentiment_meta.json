@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "task": "3-class sentiment classification",
+  "labels": [
+    "negative",
+    "neutral",
+    "positive"
+  ],
+  "dataset": "D1",
+  "dataset_identifier": "cardiffnlp/tweet_eval",
+  "preprocess": "app.training.text_normalise.normalise_tweet",
+  "fit_scope": "train+validation",
+  "best_params": {
+    "C": 4.0,
+    "class_weight": "balanced"
+  },
+  "selection": [
+    {
+      "params": {
+        "C": 1.0,
+        "class_weight": null
+      },
+      "validation_macro_f1": 0.6327909836573583,
+      "validation_accuracy": 0.681,
+      "train_seconds": 18.56,
+      "n_iter": 90
+    },
+    {
+      "params": {
+        "C": 4.0,
+        "class_weight": null
+      },
+      "validation_macro_f1": 0.6389019455350112,
+      "validation_accuracy": 0.6755,
+      "train_seconds": 28.54,
+      "n_iter": 174
+    },
+    {
+      "params": {
+        "C": 1.0,
+        "class_weight": "balanced"
+      },
+      "validation_macro_f1": 0.6416735848117517,
+      "validation_accuracy": 0.6615,
+      "train_seconds": 18.38,
+      "n_iter": 91
+    },
+    {
+      "params": {
+        "C": 4.0,
+        "class_weight": "balanced"
+      },
+      "validation_macro_f1": 0.6517798323660414,
+      "validation_accuracy": 0.675,
+      "train_seconds": 28.14,
+      "n_iter": 179
+    }
+  ],
+  "test_metrics": {
+    "n_samples": 12284,
+    "accuracy": 0.5867795506349723,
+    "macro_precision": 0.5768386776869794,
+    "macro_recall": 0.5935666761021466,
+    "macro_f1": 0.5835244141154288,
+    "weighted_f1": 0.5872965690859545,
+    "per_class": {
+      "negative": {
+        "precision": 0.5634398496240601,
+        "recall": 0.6037260825780463,
+        "f1": 0.5828877005347594,
+        "support": 3972
+      },
+      "neutral": {
+        "precision": 0.6316779533483823,
+        "recall": 0.5656055246757622,
+        "f1": 0.5968186261441394,
+        "support": 5937
+      },
+      "positive": {
+        "precision": 0.5353982300884956,
+        "recall": 0.6113684210526316,
+        "f1": 0.5708669156673875,
+        "support": 2375
+      }
+    },
+    "label_order": [
+      "negative",
+      "neutral",
+      "positive"
+    ],
+    "confusion_matrix": [
+      [
+        2398,
+        1275,
+        299
+      ],
+      [
+        1618,
+        3358,
+        961
+      ],
+      [
+        240,
+        683,
+        1452
+      ]
+    ]
+  },
+  "split_sizes": {
+    "train": 45615,
+    "validation": 2000,
+    "test": 12284
+  },
+  "effective_sizes": {
+    "train": 45615,
+    "validation": 2000,
+    "test": 12284
+  },
+  "trained_at": "2026-09-27T14:43:12.723625+00:00",
+  "pipeline_file": "sentiment_pipeline.joblib",
+  "pipeline_size_mb": 1.865,
+  "selection_seconds": 108.46,
+  "total_seconds": 135.06,
+  "device_note": "CPU-only training in this environment; the GPU present is not used by scikit-learn."
+}

@@ -1,0 +1,571 @@
+{
+  "generated_at": "2026-09-27T18:15:39.239332+00:00",
+  "phase": 5,
+  "dataset": {
+    "key": "D3",
+    "identifier": "vibhorag101/suicide_prediction_dataset_phr",
+    "config": null,
+    "split": "test",
+    "rows": 46394,
+    "labels": [
+      "suicide",
+      "non-suicide"
+    ],
+    "positive_label": "suicide",
+    "class_distribution": {
+      "suicide": 23126,
+      "non-suicide": 23268
+    },
+    "text_note": "pre-cleaned by the dataset authors (lowercased, stopwords removed, lemmatised); not runtime user text"
+  },
+  "primary_metric": "macro_f1",
+  "decision_threshold": 0.5,
+  "level_thresholds": {
+    "moderate": 0.35,
+    "high": 0.75,
+    "critical": 0.92,
+    "note": "pre-registered configuration; never retuned on test"
+  },
+  "confidence_semantics": "classifier support for the assigned level's direction (p for >=moderate, 1-p for low); act on `level`, never on `confidence`",
+  "preprocess": {
+    "trained": "tweet",
+    "note": "trained is always normalised (it was fitted that way); the pretrained policy is chosen by measurement"
+  },
+  "serving_policy": {
+    "trained": "tweet",
+    "pretrained": "raw"
+  },
+  "models": {
+    "rules_only": {
+      "requested_backend": "rules_only",
+      "resolved_backend": "rules_only",
+      "model": "app.safety.rules deterministic pattern set",
+      "preprocess": null,
+      "trained_params": null,
+      "bundle_trained_at": null,
+      "model_size_mb": null,
+      "load_seconds": null,
+      "predict_seconds": 9.777,
+      "ms_per_sample": 0.211,
+      "metrics": {
+        "n_samples": 46394,
+        "accuracy": 0.5248739061085486,
+        "macro_precision": 0.7344870563954563,
+        "macro_recall": 0.5234221968458225,
+        "macro_f1": 0.385758876804842,
+        "weighted_f1": 0.3866535882574044,
+        "per_class": {
+          "suicide": {
+            "precision": 0.9554247266610597,
+            "recall": 0.04912220012107585,
+            "f1": 0.09344026321200904,
+            "support": 23126
+          },
+          "non-suicide": {
+            "precision": 0.5135493861298529,
+            "recall": 0.997722193570569,
+            "f1": 0.678077490397675,
+            "support": 23268
+          }
+        },
+        "label_order": [
+          "suicide",
+          "non-suicide"
+        ],
+        "confusion_matrix": [
+          [
+            1136,
+            21990
+          ],
+          [
+            53,
+            23215
+          ]
+        ],
+        "class_share": {
+          "suicide": 0.4985,
+          "non-suicide": 0.5015
+        }
+      }
+    },
+    "trained": {
+      "requested_backend": "trained",
+      "resolved_backend": "trained",
+      "model": "vibhorag101/suicide_prediction_dataset_phr",
+      "preprocess": "tweet",
+      "trained_params": {
+        "C": 4.0,
+        "class_weight": null
+      },
+      "bundle_trained_at": "2026-09-27T15:46:46.038445+00:00",
+      "model_size_mb": 2.295,
+      "load_seconds": 0.399,
+      "predict_seconds": 4.215,
+      "ms_per_sample": 0.091,
+      "metrics": {
+        "n_samples": 46394,
+        "accuracy": 0.9420830279777558,
+        "macro_precision": 0.9421043030585828,
+        "macro_recall": 0.9420735789916117,
+        "macro_f1": 0.9420809632764515,
+        "weighted_f1": 0.9420820217153872,
+        "per_class": {
+          "suicide": {
+            "precision": 0.9445000217476404,
+            "recall": 0.9389864222087694,
+            "f1": 0.9417351518962639,
+            "support": 23126
+          },
+          "non-suicide": {
+            "precision": 0.9397085843695253,
+            "recall": 0.9451607357744541,
+            "f1": 0.942426774656639,
+            "support": 23268
+          }
+        },
+        "label_order": [
+          "suicide",
+          "non-suicide"
+        ],
+        "confusion_matrix": [
+          [
+            21715,
+            1411
+          ],
+          [
+            1276,
+            21992
+          ]
+        ],
+        "class_share": {
+          "suicide": 0.4985,
+          "non-suicide": 0.5015
+        }
+      },
+      "batching": "sorted by text length, original order restored"
+    },
+    "pretrained": {
+      "requested_backend": "pretrained",
+      "resolved_backend": "pretrained",
+      "model": "vibhorag101/roberta-base-suicide-prediction-phr",
+      "preprocess": "raw",
+      "trained_params": {
+        "C": 4.0,
+        "class_weight": null
+      },
+      "bundle_trained_at": "2026-09-27T15:46:46.038445+00:00",
+      "model_size_mb": null,
+      "load_seconds": 5.252,
+      "predict_seconds": 3033.458,
+      "ms_per_sample": 65.385,
+      "metrics": {
+        "n_samples": 46394,
+        "accuracy": 0.9630986765530025,
+        "macro_precision": 0.9630987433863879,
+        "macro_recall": 0.9631030809370722,
+        "macro_f1": 0.963098592546022,
+        "weighted_f1": 0.9630987629601825,
+        "per_class": {
+          "suicide": {
+            "precision": 0.9615484093456332,
+            "recall": 0.9645420738562657,
+            "f1": 0.9630429151195924,
+            "support": 23126
+          },
+          "non-suicide": {
+            "precision": 0.9646490774271426,
+            "recall": 0.9616640880178786,
+            "f1": 0.9631542699724518,
+            "support": 23268
+          }
+        },
+        "label_order": [
+          "suicide",
+          "non-suicide"
+        ],
+        "confusion_matrix": [
+          [
+            22306,
+            820
+          ],
+          [
+            892,
+            22376
+          ]
+        ],
+        "class_share": {
+          "suicide": 0.4985,
+          "non-suicide": 0.5015
+        }
+      },
+      "batching": "sorted by text length, original order restored"
+    },
+    "trained+rules": {
+      "requested_backend": "trained+rules",
+      "resolved_backend": "trained+rules",
+      "model": "trained with configured level thresholds + rules",
+      "preprocess": "tweet",
+      "trained_params": null,
+      "bundle_trained_at": null,
+      "model_size_mb": null,
+      "load_seconds": null,
+      "predict_seconds": 4.215,
+      "ms_per_sample": 0.091,
+      "metrics": {
+        "n_samples": 46394,
+        "accuracy": 0.9386989696943571,
+        "macro_precision": 0.9394587704670797,
+        "macro_recall": 0.9387641049055788,
+        "macro_f1": 0.9386781915356395,
+        "weighted_f1": 0.9386747366193186,
+        "per_class": {
+          "suicide": {
+            "precision": 0.9204046098996767,
+            "recall": 0.9600449710282799,
+            "f1": 0.9398069759566543,
+            "support": 23126
+          },
+          "non-suicide": {
+            "precision": 0.9585129310344828,
+            "recall": 0.9174832387828777,
+            "f1": 0.9375494071146245,
+            "support": 23268
+          }
+        },
+        "label_order": [
+          "suicide",
+          "non-suicide"
+        ],
+        "confusion_matrix": [
+          [
+            22202,
+            924
+          ],
+          [
+            1920,
+            21348
+          ]
+        ],
+        "class_share": {
+          "suicide": 0.4985,
+          "non-suicide": 0.5015
+        }
+      }
+    },
+    "pretrained+rules": {
+      "requested_backend": "pretrained+rules",
+      "resolved_backend": "pretrained+rules",
+      "model": "pretrained with configured level thresholds + rules",
+      "preprocess": "raw",
+      "trained_params": null,
+      "bundle_trained_at": null,
+      "model_size_mb": null,
+      "load_seconds": null,
+      "predict_seconds": 3033.458,
+      "ms_per_sample": 65.385,
+      "metrics": {
+        "n_samples": 46394,
+        "accuracy": 0.9622796051213519,
+        "macro_precision": 0.9624237752399019,
+        "macro_recall": 0.9623085439319048,
+        "macro_f1": 0.9622780067235158,
+        "weighted_f1": 0.9622772551589703,
+        "per_class": {
+          "suicide": {
+            "precision": 0.9534577853203224,
+            "recall": 0.9717633832050506,
+            "f1": 0.9625235566215522,
+            "support": 23126
+          },
+          "non-suicide": {
+            "precision": 0.9713897651594813,
+            "recall": 0.9528537046587588,
+            "f1": 0.9620324568254794,
+            "support": 23268
+          }
+        },
+        "label_order": [
+          "suicide",
+          "non-suicide"
+        ],
+        "confusion_matrix": [
+          [
+            22473,
+            653
+          ],
+          [
+            1097,
+            22171
+          ]
+        ],
+        "class_share": {
+          "suicide": 0.4985,
+          "non-suicide": 0.5015
+        }
+      }
+    }
+  },
+  "preprocess_ablation": {
+    "pretrained_raw": {
+      "requested_backend": "pretrained",
+      "resolved_backend": "pretrained",
+      "model": "vibhorag101/roberta-base-suicide-prediction-phr",
+      "preprocess": "raw",
+      "trained_params": {
+        "C": 4.0,
+        "class_weight": null
+      },
+      "bundle_trained_at": "2026-09-27T15:46:46.038445+00:00",
+      "model_size_mb": null,
+      "load_seconds": 5.252,
+      "predict_seconds": 3033.458,
+      "ms_per_sample": 65.385,
+      "metrics": {
+        "n_samples": 46394,
+        "accuracy": 0.9630986765530025,
+        "macro_precision": 0.9630987433863879,
+        "macro_recall": 0.9631030809370722,
+        "macro_f1": 0.963098592546022,
+        "weighted_f1": 0.9630987629601825,
+        "per_class": {
+          "suicide": {
+            "precision": 0.9615484093456332,
+            "recall": 0.9645420738562657,
+            "f1": 0.9630429151195924,
+            "support": 23126
+          },
+          "non-suicide": {
+            "precision": 0.9646490774271426,
+            "recall": 0.9616640880178786,
+            "f1": 0.9631542699724518,
+            "support": 23268
+          }
+        },
+        "label_order": [
+          "suicide",
+          "non-suicide"
+        ],
+        "confusion_matrix": [
+          [
+            22306,
+            820
+          ],
+          [
+            892,
+            22376
+          ]
+        ],
+        "class_share": {
+          "suicide": 0.4985,
+          "non-suicide": 0.5015
+        }
+      },
+      "batching": "sorted by text length, original order restored"
+    },
+    "pretrained_tweet": {
+      "requested_backend": "pretrained",
+      "resolved_backend": "pretrained",
+      "model": "vibhorag101/roberta-base-suicide-prediction-phr",
+      "preprocess": "tweet",
+      "trained_params": {
+        "C": 4.0,
+        "class_weight": null
+      },
+      "bundle_trained_at": "2026-09-27T15:46:46.038445+00:00",
+      "model_size_mb": null,
+      "load_seconds": 0.214,
+      "predict_seconds": 2104.871,
+      "ms_per_sample": 45.369,
+      "metrics": {
+        "n_samples": 46394,
+        "accuracy": 0.9630986765530025,
+        "macro_precision": 0.9630987433863879,
+        "macro_recall": 0.9631030809370722,
+        "macro_f1": 0.963098592546022,
+        "weighted_f1": 0.9630987629601825,
+        "per_class": {
+          "suicide": {
+            "precision": 0.9615484093456332,
+            "recall": 0.9645420738562657,
+            "f1": 0.9630429151195924,
+            "support": 23126
+          },
+          "non-suicide": {
+            "precision": 0.9646490774271426,
+            "recall": 0.9616640880178786,
+            "f1": 0.9631542699724518,
+            "support": 23268
+          }
+        },
+        "label_order": [
+          "suicide",
+          "non-suicide"
+        ],
+        "confusion_matrix": [
+          [
+            22306,
+            820
+          ],
+          [
+            892,
+            22376
+          ]
+        ],
+        "class_share": {
+          "suicide": 0.4985,
+          "non-suicide": 0.5015
+        }
+      },
+      "batching": "sorted by text length, original order restored"
+    }
+  },
+  "decision": {
+    "criterion": "highest macro-F1 on the identical D3 test rows; ties broken by lower per-sample latency",
+    "selected": "pretrained",
+    "margin_macro_f1": 0.021018,
+    "notes": [
+      "Both backends are scored against the same labels and the same test rows; no test row was used for fitting or selection.",
+      "Pretrained weights are used as-is: no fine-tuning was performed.",
+      "The four-level scale is our own fusion (thresholds + rules); the dataset only supplies binary labels.",
+      "The pretrained model's card reports it was fine-tuned on this same dataset with an 80:10:10 split; we cannot verify whether its evaluation rows overlap D3's test split, so its score may be optimistic."
+    ]
+  },
+  "level_distribution": {
+    "counts": {
+      "low": 22824,
+      "moderate": 748,
+      "high": 680,
+      "critical": 22142
+    },
+    "share": {
+      "low": 0.492,
+      "moderate": 0.0161,
+      "high": 0.0147,
+      "critical": 0.4773
+    },
+    "mean_classifier_score": {
+      "low": 0.0072,
+      "moderate": 0.5184,
+      "high": 0.8589,
+      "critical": 0.9951
+    },
+    "gold_positive_share": {
+      "low": 0.0286,
+      "moderate": 0.4853,
+      "high": 0.6647,
+      "critical": 0.9781
+    }
+  },
+  "rules": [
+    {
+      "id": "help_request",
+      "level": "moderate",
+      "description": "The user explicitly asks for help.",
+      "patterns": 4
+    },
+    {
+      "id": "hopelessness",
+      "level": "moderate",
+      "description": "Hopelessness / no-worth language without stated intent.",
+      "patterns": 9
+    },
+    {
+      "id": "active_ideation",
+      "level": "high",
+      "description": "First-person statement of intent to end one's life or self-harm.",
+      "patterns": 8
+    },
+    {
+      "id": "method_or_plan",
+      "level": "critical",
+      "description": "A method, means or final-arrangements cue in the message.",
+      "patterns": 9
+    },
+    {
+      "id": "imminence",
+      "level": "critical",
+      "description": "Stated intent bound to 'now / tonight / today'.",
+      "patterns": 2
+    },
+    {
+      "id": "protective_help_seeking",
+      "level": "none",
+      "description": "protective, never escalates",
+      "patterns": 1
+    },
+    {
+      "id": "protective_in_care",
+      "level": "none",
+      "description": "protective, never escalates",
+      "patterns": 1
+    },
+    {
+      "id": "protective_future_orientation",
+      "level": "none",
+      "description": "protective, never escalates",
+      "patterns": 1
+    },
+    {
+      "id": "protective_reaches_out",
+      "level": "none",
+      "description": "protective, never escalates",
+      "patterns": 1
+    },
+    {
+      "id": "protective_negated_intent",
+      "level": "none",
+      "description": "protective, never escalates",
+      "patterns": 1
+    }
+  ],
+  "rule_probes": [
+    {
+      "text": "i want to kill myself tonight",
+      "rule_hits": [
+        "active_ideation",
+        "imminence"
+      ],
+      "rules_only_label": "suicide",
+      "note": "runtime-style probe string, not a dataset row"
+    },
+    {
+      "text": "i have been feeling really hopeless and worthless lately",
+      "rule_hits": [],
+      "rules_only_label": "non-suicide",
+      "note": "runtime-style probe string, not a dataset row"
+    },
+    {
+      "text": "can someone please help me, i don't know what to do",
+      "rule_hits": [
+        "help_request"
+      ],
+      "rules_only_label": "suicide",
+      "note": "runtime-style probe string, not a dataset row"
+    },
+    {
+      "text": "the meeting is at nine tomorrow and i need the slides",
+      "rule_hits": [],
+      "rules_only_label": "non-suicide",
+      "note": "runtime-style probe string, not a dataset row"
+    },
+    {
+      "text": "i am scared but i want to get better and i am starting therapy",
+      "rule_hits": [],
+      "rules_only_label": "non-suicide",
+      "note": "runtime-style probe string, not a dataset row"
+    },
+    {
+      "text": "i took all the pills an hour ago",
+      "rule_hits": [
+        "method_or_plan"
+      ],
+      "rules_only_label": "suicide",
+      "note": "runtime-style probe string, not a dataset row"
+    }
+  ],
+  "caveats": [
+    "D3's text is pre-cleaned by its authors; the rules target runtime user messages, so rules_only on D3 is a floor and not evidence of runtime rule quality.",
+    "Risk levels are a research prototype's heuristic, not a clinical or validated instrument."
+  ],
+  "disclaimer": "Research prototype only. Not a medical device, not a diagnostic system, and not a replacement for a mental-health professional."
+}
