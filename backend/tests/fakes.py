@@ -120,6 +120,38 @@ def api_client(fake_llm):  # noqa: ANN001
         chat_mod.build_post_gate = _real_gate
 
 
+@contextmanager
+def auth_env(db_path: Path):
+    """AUTH_ENABLED=true + DATABASE_PATH=db for one Phase 20 test.
+
+    The auth store and the sqlite memory backend share ``db_path`` - the
+    same file layout the product uses (``data/sessions.db``).
+    """
+    from app.auth.store import reset_auth_store
+
+    keys = ("AUTH_ENABLED", "DATABASE_PATH", "MEMORY_BACKEND")
+    old = {k: os.environ.get(k) for k in keys}
+    os.environ["AUTH_ENABLED"] = "true"
+    os.environ["DATABASE_PATH"] = str(db_path)
+    os.environ["MEMORY_BACKEND"] = "sqlite"
+    reset_settings_cache()
+    reset_turn_log()
+    reset_state_engine()
+    reset_auth_store()
+    try:
+        yield db_path
+    finally:
+        reset_turn_log()
+        reset_state_engine()
+        reset_auth_store()
+        reset_settings_cache()
+        for k, v in old.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+
 def all_text(row: dict) -> str:
     """Every stored value of a row, as one searchable string."""
     return json.dumps({k: str(v) for k, v in row.items()}, ensure_ascii=False)

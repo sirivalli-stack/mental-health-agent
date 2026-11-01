@@ -159,8 +159,19 @@ def run_chat_turn(
     pre_gate: "PreGenerationGate | None" = None,
     post_gate: "PostGenerationGate | None" = None,
     turn_log: TurnLog | None = None,
+    initial_profile=None,  # noqa: ANN001 - UserProfile | None, Phase 20
+    personalization_enabled: bool = True,
 ) -> ChatOutcome:
-    """Run one full turn: state -> pre-gate -> LLM -> post-gate."""
+    """Run one full turn: state -> pre-gate -> LLM -> post-gate.
+
+    ``initial_profile`` seeds the conversation profile on its *first* turn
+    (Phase 20: explicit user preferences). Callers must only pass it when
+    the session has no history yet - on a session that already exists it
+    would replace the accumulated profile instead of seeding it.
+    ``personalization_enabled=False`` skips extractor learning for this
+    turn (the user's privacy setting). Both defaults leave Phases 12-18
+    behaviour byte-identical.
+    """
     settings = get_settings()
     active_engine = engine or get_state_engine()
     active_profile: SystemProfile = SystemProfile(
@@ -171,8 +182,15 @@ def run_chat_turn(
     active_log = turn_log if turn_log is not None else get_turn_log()
     started = time.perf_counter()
 
-    # 1. state update - always runs so history/trends/memory stay coherent
-    state = active_engine.update(session_id, message)
+    # 1. state update - always runs so history/trends/memory stay coherent.
+    #    `initial_profile` (Phase 20) seeds a brand-new conversation with the
+    #    user's explicit preferences; None keeps the classic path exactly.
+    state = active_engine.update(
+        session_id,
+        message,
+        profile=initial_profile,
+        extract_profile=personalization_enabled,
+    )
 
     # 2. pre-generation gate (state-aware)
     pre = (pre_gate or build_pre_gate()).evaluate(message, state=state)

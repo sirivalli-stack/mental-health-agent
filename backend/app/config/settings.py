@@ -119,6 +119,18 @@ class Settings(BaseSettings):
     # (newest survive). 0 disables list accumulation - an ablation knob.
     profile_max_items: int = Field(default=8, ge=0, le=50)
 
+    # ---------- Authentication (Phase 20) ----------
+    # true  -> /api/chat, /api/sessions/*, conversations and preferences
+    #          require a bearer token and are scoped to their owner;
+    # false -> legacy anonymous mode: the Phase 12-18 API behaviour, used by
+    #          the test suite and the ablation harness.
+    auth_enabled: bool = True
+    # PBKDF2-HMAC-SHA256 iterations for stored passwords (OWASP 2023: 390k).
+    auth_pbkdf2_iterations: int = Field(default=390_000, ge=10_000, le=5_000_000)
+    # Session lifetimes for the opaque bearer token.
+    auth_token_ttl_hours: int = Field(default=12, ge=1, le=24 * 30)
+    auth_remember_ttl_days: int = Field(default=30, ge=1, le=365)
+
     # ---------- Safety ----------
     # Probability of the positive (risk) class at/above which the level
     # becomes moderate. Pre-registered defaults; measured behaviour is

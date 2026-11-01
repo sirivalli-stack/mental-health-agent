@@ -99,6 +99,8 @@ def health() -> HealthResponse:
         ),
         # Phase 15: metadata-only turn audit rows (never message/reply text).
         _turn_log_status(),
+        # Phase 20: accounts + conversation ownership (config-only probe).
+        _auth_status(),
     ]
     return HealthResponse(
         status="ok",
@@ -230,3 +232,28 @@ def _turn_log_status() -> ComponentStatus:
         )
     except Exception as exc:  # noqa: BLE001 - health must always respond
         return ComponentStatus(name="turn_log", loaded=False, detail=f"error: {exc}")
+
+
+def _auth_status() -> ComponentStatus:
+    """Phase 20: accounts + ownership (config probe; no file when disabled)."""
+    try:
+        s = get_settings()
+        if not s.auth_enabled:
+            return ComponentStatus(
+                name="auth",
+                loaded=False,
+                detail="disabled (AUTH_ENABLED=false) - anonymous mode",
+            )
+        from app.auth.store import get_auth_store
+
+        store = get_auth_store()
+        return ComponentStatus(
+            name="auth",
+            loaded=True,
+            detail=(
+                f"enabled users={store.user_count()} "
+                f"token_ttl={s.auth_token_ttl_hours}h"
+            ),
+        )
+    except Exception as exc:  # noqa: BLE001 - health must always respond
+        return ComponentStatus(name="auth", loaded=False, detail=f"error: {exc}")

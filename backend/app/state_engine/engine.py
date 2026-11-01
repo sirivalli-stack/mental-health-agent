@@ -250,6 +250,7 @@ class StateEngine:
         risk: RiskResult | None = None,
         profile: UserProfile | None = None,
         timestamp: datetime | None = None,
+        extract_profile: bool = True,
     ) -> UserState:
         """Analyse one turn, append it to the session, return the new state.
 
@@ -262,6 +263,9 @@ class StateEngine:
         the user explicitly stated (name, language, style, preferences,
         topics to avoid) is merged into ``profile`` *before* the state is
         built, so the LLM sees a fresh profile in the same response.
+        ``extract_profile=False`` skips extraction for this turn only
+        (Phase 20: the user's "stop learning from my messages" setting) -
+        the stored profile is kept as-is and nothing new is added.
         """
         session_id = self._check_session(session_id)
         text = self._check_text(text)
@@ -315,7 +319,9 @@ class StateEngine:
                 if profile is not None
                 else (previous.profile if previous else UserProfile())
             )
-            profile_now = self._personalize(text, profile_base)
+            profile_now = (
+                self._personalize(text, profile_base) if extract_profile else profile_base
+            )
 
             state = UserState(
                 session_id=session_id,

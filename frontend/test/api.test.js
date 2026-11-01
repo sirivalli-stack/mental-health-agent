@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchHealth, sendChat } from '../src/api.js'
+import {
+  fetchHealth,
+  fromServerPreferences,
+  login,
+  register,
+  savePreferences,
+  sendChat,
+  toServerPreferences,
+} from '../src/api.js'
 
 describe('api client', () => {
   beforeEach(() => {
@@ -60,5 +68,101 @@ describe('api client', () => {
   it('wraps network failures as a friendly error', async () => {
     fetch.mockRejectedValue(new TypeError('Failed to fetch'))
     await expect(fetchHealth()).rejects.toThrow('Backend unreachable')
+  })
+})
+
+describe('auth payloads', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('register posts the snake_case body', async () => {
+    fetch.mockResolvedValue({ ok: true, json: async () => ({ token: 't' }) })
+    await register({
+      displayName: 'Alex Rivera',
+      username: 'alex',
+      email: 'alex@example.com',
+      password: 'correct-horse-1',
+    })
+    const [url, options] = fetch.mock.calls[0]
+    expect(url).toBe('/api/auth/register')
+    expect(JSON.parse(options.body)).toEqual({
+      display_name: 'Alex Rivera',
+      username: 'alex',
+      email: 'alex@example.com',
+      password: 'correct-horse-1',
+    })
+  })
+
+  it('login sends the identifier, password and remember flag', async () => {
+    fetch.mockResolvedValue({ ok: true, json: async () => ({ token: 't' }) })
+    await login({ identifier: 'alex', password: 'pw', remember: true })
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({
+      identifier: 'alex',
+      password: 'pw',
+      remember: true,
+    })
+  })
+})
+
+describe('preference mapping', () => {
+  const ui = {
+    responseLength: 'short',
+    tone: 'gentle',
+    asksQuestions: false,
+    language: 'es',
+    personalizationEnabled: true,
+  }
+
+  it('maps the UI shape onto the backend contract', () => {
+    expect(toServerPreferences(ui)).toEqual({
+      response_length: 'short',
+      tone: 'gentle',
+      asks_questions: false,
+      preferred_language: 'es',
+      personalization_enabled: true,
+    })
+  })
+
+  it('maps the backend contract back onto the UI shape', () => {
+    expect(
+      fromServerPreferences({
+        response_length: 'detailed',
+        tone: 'direct',
+        asks_questions: true,
+        preferred_language: 'en',
+        personalization_enabled: false,
+        updated_at: '2026-03-10T12:00:00Z',
+      }),
+    ).toEqual({
+      responseLength: 'detailed',
+      tone: 'direct',
+      asksQuestions: true,
+      language: 'en',
+      personalizationEnabled: false,
+      updatedAt: '2026-03-10T12:00:00Z',
+    })
+  })
+
+  it('round-trips through savePreferences', async () => {
+    vi.stubGlobal('fetch', vi.fn())
+    fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        response_length: 'short',
+        tone: 'gentle',
+        asks_questions: false,
+        preferred_language: 'es',
+        personalization_enabled: true,
+      }),
+    })
+    const saved = await savePreferences(ui)
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual(toServerPreferences(ui))
+    expect(saved.responseLength).toBe('short')
+    vi.unstubAllGlobals()
   })
 })

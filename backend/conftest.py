@@ -18,6 +18,9 @@ os.environ.setdefault("MEMORY_BACKEND", "none")
 # Phase 15: no turn-audit rows in project data/ either; tests that need the
 # audit either inject a TurnLog(tmp) or set TURN_LOG_ENABLED themselves.
 os.environ.setdefault("TURN_LOG_ENABLED", "false")
+# Phase 20: the legacy suites (Phases 1-18) run in anonymous mode; the
+# Phase 20 suite enables AUTH_ENABLED itself per test.
+os.environ.setdefault("AUTH_ENABLED", "false")
 
 
 def pytest_configure() -> None:

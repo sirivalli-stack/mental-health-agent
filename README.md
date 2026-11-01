@@ -82,6 +82,8 @@ cd ..
 cd backend
 uvicorn main:app --reload --host 127.0.0.1 --port 8000
 # open http://127.0.0.1:8000/docs  (frontend dev server: cd frontend && npm run dev)
+# the UI runs at http://localhost:5173 - create an account on first visit
+# (AUTH_ENABLED=false in .env restores the legacy keyless mode)
 
 # 5. reproduce the Phase 18 experiment (needs Ollama + llama3.1:8b-instruct-q4_K_M)
 #    dry run first - outputs are marked "NOT RESULTS" (disposable):
@@ -324,6 +326,46 @@ the archived run, and the documented dry run was executed and cleaned up.
 Reproduce coverage: the Quick start `--cov-report=json:` command regenerates
 `coverage.json`; `coverage.txt` is the same data as a plain
 `python -m coverage report` dump.
+
+Phase 20 complete: accounts, history and the premium UI — `backend/app/auth/`
+adds stdlib-only authentication (PBKDF2-HMAC-SHA256 password hashing with per-
+user salts; opaque bearer tokens stored only as SHA-256 digests; TTL 12 h or
+7 d with "keep me signed in") and `backend/app/api/auth.py` (register, login,
+logout, me, profile, password, account deletion — generic 401s that never
+reveal which accounts exist). Five additive tables (`users`, `auth_tokens`,
+`conversations`, `messages`, `user_preferences`) live in the existing
+`data/sessions.db`; no schema-version bump, and `AUTH_ENABLED=false` keeps the
+legacy anonymous behaviour (the conftest sets it, so every earlier suite runs
+unchanged). `backend/app/api/conversations.py` provides per-user list / read /
+messages / rename / delete plus `GET|PUT /api/preferences` and
+`GET|DELETE /api/personalization`; `/api/chat` now resolves the caller,
+rejects other users' session ids with 404 (no existence leak), persists both
+turns, derives the title from the first message (user renames win), and seeds
+new conversations' `UserProfile` from the explicit preferences
+(`personalization_enabled=false` stops the extractor, not the seed).
+The frontend was rebuilt as **Sage**: welcome/sign-in/create-account screens,
+a personalized home (time-of-day greeting with the user's real name,
+starters, recent conversations), a searchable history sidebar with rename and
+delete (confirmation dialogs), a chat workspace with markdown replies,
+honest source badges, retry-on-failure, and an optional insights panel fed
+only by backend state, plus settings (profile, password, conversation
+preferences, personalization transparency with a one-click "forget
+everything", device-local appearance, account deletion). Hash router,
+dependency-free XSS-safe markdown renderer, bearer token in localStorage
+(passwords never stored client-side), protected routes, and a 401 interceptor
+that returns to sign-in. Hand-off verification: **509 backend tests collected
+— 504 pass here; the 5 failures are pre-existing machine issues verified
+independently of this phase (the Mila guardrail emits a single logit under the
+installed transformers version, and `data/sessions.db` already exists in the
+working tree). 20 of the passing tests are the new auth/history suite
+`tests/test_phase20_auth.py`; 43 frontend tests**; a live browser walkthrough (register → home → starter → real Ollama
+turn → reload persistence → rename → settings save → personalization
+learn/clear → dark theme → sign out → route guard → sign in → delete) with
+zero console errors. Known machine limitation: the Mila output-guardrail
+produces a single logit under the installed transformers version, so
+`probs[1]` raises `IndexError` on this machine (the same defect behind 4 of
+the 5 pre-existing test failures) — live runs used `POST_SAFETY_GUARDRAIL=false`;
+rule-based pre/post checks stayed on.
 
 See `docs/architecture.md` for the full design, the research question and the
 list of claims this project must not make.

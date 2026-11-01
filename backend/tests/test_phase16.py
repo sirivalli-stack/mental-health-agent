@@ -50,7 +50,7 @@ CRISIS = f"I want to kill myself tonight {SECRET_MESSAGE}"
 HEALTH_COMPONENTS = {
     "config", "logging", "schemas", "sentiment", "emotion", "risk",
     "pipeline", "state_engine", "memory", "personalization", "llm",
-    "safety_pre", "safety_post", "turn_log",
+    "safety_pre", "safety_post", "turn_log", "auth",
 }
 
 

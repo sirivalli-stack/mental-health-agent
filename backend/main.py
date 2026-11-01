@@ -13,7 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from app.api import chat, health
+from app.api import auth, chat, conversations, health
 from app.config.logging_config import configure_logging, get_logger
 from app.config.settings import get_settings
 from app.models.schemas import ErrorResponse
@@ -36,11 +36,13 @@ async def lifespan(app: FastAPI):  # noqa: ANN001, ANN201
     yield
     # Phase 15: release database handles ourselves (SQLite memory backend +
     # turn audit) instead of leaving them to the OS at process exit.
+    from app.auth.store import reset_auth_store
     from app.pipelines.turn_log import reset_turn_log
     from app.state_engine import close_state_engine
 
     close_state_engine()
     reset_turn_log()
+    reset_auth_store()
     logger.info("Shutting down %s", settings.app_name)
 
 
@@ -57,6 +59,10 @@ app = FastAPI(
 
 app.include_router(health.router)
 app.include_router(chat.router)
+# Phase 20: authentication, conversation history and preferences. Mounted
+# after the chat router; all routes live under /api/auth and /api/*.
+app.include_router(auth.router)
+app.include_router(conversations.router)
 
 
 @app.get("/", tags=["system"])
