@@ -69,12 +69,14 @@ def _bad_request(error: str, detail: str) -> HTTPException:
     )
 
 
-@router.post("/chat", response_model=ChatResponse)
-def chat(
-    request: ChatRequest,
-    user=Depends(current_user),  # noqa: ANN001 - dict | None
-) -> ChatResponse:
-    """Run one conversational turn through the full pipeline."""
+def perform_turn(request: ChatRequest, user: dict | None) -> ChatResponse:
+    """Run one conversational turn through the full pipeline.
+
+    Shared by ``POST /api/chat`` and the voice WebSocket (Phase 24): the
+    exact same auth check, ownership check, persistence, state update,
+    pre-generation gate, LLM call and post-generation gate - voice is a
+    different *transport*, never a different pipeline.
+    """
     session_id = request.session_id or uuid4().hex
     settings = get_settings()
 
@@ -143,6 +145,15 @@ def chat(
         disclaimer=get_settings().safety_disclaimer,
         source=outcome.source,
     )
+
+
+@router.post("/chat", response_model=ChatResponse)
+def chat(
+    request: ChatRequest,
+    user=Depends(current_user),  # noqa: ANN001 - dict | None
+) -> ChatResponse:
+    """Run one conversational turn through the full pipeline."""
+    return perform_turn(request, user)
 
 
 @router.post("/chat/regenerate", response_model=ChatResponse)

@@ -13,6 +13,7 @@ import { MessageList } from './MessageList.jsx'
 import { InsightsPanel } from './InsightsPanel.jsx'
 import { STARTERS } from './Home.jsx'
 import { Icon } from './ui.jsx'
+import { VoiceConversation } from './VoiceConversation.jsx'
 
 let bubbleSeq = 0
 function userBubble(text) {
@@ -54,6 +55,7 @@ export function Chat({
   const [showInsights, setShowInsights] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [draftTitle, setDraftTitle] = useState('')
+  const [voiceOpen, setVoiceOpen] = useState(false)
   const titleRef = useRef(null)
 
   // ---- load an existing conversation ------------------------------------
@@ -126,6 +128,33 @@ export function Chat({
     setMessages((prev) => [...prev, userBubble(retryText)])
     deliver(retryText)
   }
+
+  // ---- voice conversation (Phase 24) -------------------------------------
+  // The voice WebSocket runs the same backend pipeline, so its turns are
+  // appended exactly like typed ones (and persisted server-side too).
+  const appendVoiceUser = useCallback((text) => {
+    setMessages((prev) => [...prev, userBubble(text)])
+  }, [])
+
+  const appendVoiceReply = useCallback(
+    (response) => {
+      setMessages((prev) => [
+        ...prev,
+        toExchange({ ...response, at: new Date().toISOString() }),
+      ])
+      setState(response.state ?? null)
+    },
+    [],
+  )
+
+  const handleVoiceSession = useCallback(
+    (sid) => {
+      onConversationsChanged?.()
+      if (!sid) return
+      if (!activeId) onNavigate?.(routes.chat(sid))
+    },
+    [activeId, onNavigate, onConversationsChanged],
+  )
 
   // ---- regenerate (Phase 21) ---------------------------------------------
   /**
@@ -219,6 +248,16 @@ export function Chat({
           )}
         </div>
         <div className="chat-head-actions">
+          <button
+            type="button"
+            className="btn btn-sm"
+            aria-pressed={voiceOpen}
+            title="Start a hands-free voice conversation"
+            onClick={() => setVoiceOpen(true)}
+          >
+            <Icon name="mic" size={15} />
+            Voice
+          </button>
           {activeId && !renaming && (
             <button
               type="button"
@@ -333,6 +372,16 @@ export function Chat({
           />
         )}
       </div>
+
+      {voiceOpen && (
+        <VoiceConversation
+          sessionId={activeId}
+          onReply={appendVoiceReply}
+          onSessionId={handleVoiceSession}
+          onUserText={appendVoiceUser}
+          onClose={() => setVoiceOpen(false)}
+        />
+      )}
     </div>
   )
 }

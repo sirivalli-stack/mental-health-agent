@@ -152,6 +152,34 @@ class Settings(BaseSettings):
     # back; 0.5 is the model card's default operating point.
     post_safety_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
 
+    # ---------- Voice conversation (Phase 24) ----------
+    # WebSocket voice mode is an *additional* I/O interface over the same
+    # chat pipeline. STT = faster-whisper (offline), TTS = Piper (offline);
+    # both download their models once into the cache dirs below.
+    voice_enabled: bool = True
+    # faster-whisper model: tiny/base/small (base ~74 MB, good accuracy
+    # vs. latency on CPU).
+    voice_stt_model: str = "base"
+    # BCP-47-ish code Whisper understands; None/"" -> infer per turn is
+    # not supported by faster-whisper, so we use the UI language here.
+    voice_stt_language: str = "en"
+    voice_stt_cache_dir: str = ""  # empty -> data/voice/stt
+    # Piper voice name from rhasspy/piper-voices (en_US-lessac-medium).
+    voice_tts_voice: str = "en_US-lessac-medium"
+    voice_tts_cache_dir: str = ""  # empty -> data/voice/tts
+    # Audio framing for VAD (ms per frame, 10-50).
+    voice_frame_ms: int = Field(default=30, ge=10, le=50)
+    # VAD sensitivity: dB above the adaptive noise floor to call speech.
+    voice_vad_threshold_db: float = Field(default=9.0, ge=3.0, le=30.0)
+    # Frames of tolerated silence before a turn ends (hangover).
+    voice_vad_hangover: int = Field(default=12, ge=3, le=60)
+    # Seconds of leading/trailing silence sent to Whisper around a turn.
+    voice_padding_ms: int = Field(default=300, ge=0, le=1500)
+    # Max seconds of a single utterance (guards runaway noise).
+    voice_max_utterance_s: float = Field(default=45.0, ge=5.0, le=180.0)
+    # TTS chunk size streamed to the browser (ms of audio per message).
+    voice_tts_chunk_ms: int = Field(default=400, ge=100, le=2000)
+
     # ---------- Paths (empty -> derived from project root) ----------
     data_dir: str = ""
     models_dir: str = ""
@@ -215,6 +243,24 @@ class Settings(BaseSettings):
         if high is not None and v < high:
             raise ValueError("RISK_CRITICAL_THRESHOLD must be >= RISK_HIGH_THRESHOLD")
         return v
+
+    @property
+    def voice_stt_cache_path(self) -> Path:
+        """Where faster-whisper downloads model weights (once)."""
+        return (
+            Path(self.voice_stt_cache_dir)
+            if self.voice_stt_cache_dir
+            else self.data_path / "voice" / "stt"
+        )
+
+    @property
+    def voice_tts_cache_path(self) -> Path:
+        """Where Piper voice models live (downloaded once)."""
+        return (
+            Path(self.voice_tts_cache_dir)
+            if self.voice_tts_cache_dir
+            else self.data_path / "voice" / "tts"
+        )
 
     @property
     def safety_disclaimer(self) -> str:

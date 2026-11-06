@@ -85,7 +85,35 @@ uvicorn main:app --reload --host 127.0.0.1 --port 8000
 # the UI runs at http://localhost:5173 - create an account on first visit
 # (AUTH_ENABLED=false in .env restores the legacy keyless mode)
 
-# 5. reproduce the Phase 18 experiment (needs Ollama + llama3.1:8b-instruct-q4_K_M)
+# 5. voice conversation mode (Phase 24) - one click, hands-free
+#    deps are already in backend/requirements.txt (faster-whisper, piper-tts);
+#    the models download automatically on first use:
+#      Whisper "base" (~74 MB, Hugging Face) -> data/voice/stt
+#      Piper voice en_US-lessac-medium       -> data/voice/tts
+#    no voice models / no mic? the UI degrades gracefully (browser TTS,
+#    or type in Text Chat instead).
+#    then open the app, press "Voice" in the chat header, allow the
+#    microphone, and speak: Sage listens (VAD), transcribes (Whisper),
+#    runs the exact same safety-checked pipeline as typed chat, and
+#    answers aloud (Piper). Talk over Sage to interrupt; press End (or
+#    Escape) to stop and release the mic. The dev/preview server proxies
+#    the WebSocket at /ws/voice (see vite.config.js).
+#
+#    optional environment variables (defaults are fine for local use):
+#      VOICE_ENABLED=true            # set false to hide/disable voice
+#      VOICE_STT_MODEL=base          # faster-whisper model (tiny/base/small/...)
+#      VOICE_STT_LANGUAGE=en         # STT hint; the UI language still rules
+#      VOICE_STT_CACHE_DIR=          # empty -> data/voice/stt
+#      VOICE_TTS_VOICE=en_US-lessac-medium   # Piper voice id
+#      VOICE_TTS_CACHE_DIR=          # empty -> data/voice/tts
+#      VOICE_VAD_THRESHOLD_DB=9.0    # speech-vs-noise sensitivity (3-30)
+#      VOICE_VAD_HANGOVER=12         # frames of silence that end a turn
+#      VOICE_FRAME_MS=30             # microphone frame size (10-50 ms)
+#      VOICE_PADDING_MS=300          # audio kept around each utterance
+#      VOICE_MAX_UTTERANCE_S=45      # cap on one continuous utterance
+#      VOICE_TTS_CHUNK_MS=400        # streamed audio chunk duration
+
+# 6. reproduce the Phase 18 experiment (needs Ollama + llama3.1:8b-instruct-q4_K_M)
 #    dry run first - outputs are marked "NOT RESULTS" (disposable):
 python evaluation/scripts/run_ablation.py --fake-llm --run-id smoke --judge --out-dir evaluation/results/ablation_runs_smoke
 #    real run (generation, then re-score the archived run if needed):
@@ -366,6 +394,30 @@ produces a single logit under the installed transformers version, so
 `probs[1]` raises `IndexError` on this machine (the same defect behind 4 of
 the 5 pre-existing test failures) — live runs used `POST_SAFETY_GUARDRAIL=false`;
 rule-based pre/post checks stayed on.
+
+Phases 21–23 complete: the Sage UI upgrade — lavender visual identity with
+light/dark/system themes, chat settings, i18n (EN/TE/HI/TA/KN with script
+detection and on-demand translation around the English-only ML core), the
+dictation microphone (draft-only, never auto-sent), and the wellness area
+(mood check-in, journal, breathing/grounding activities) — all persisted
+through the existing API with the safety gates untouched.
+
+Phase 24 complete: two-way voice conversation — `backend/app/voice/`
+(faster-whisper STT, energy VAD with echo margin, Piper TTS streamed as
+playback-paced WAV chunks) behind a single WebSocket `/ws/voice`
+(`backend/app/api/voice.py`) that reuses `perform_turn()` from `/api/chat`,
+so every spoken turn runs the identical auth, persistence, and pre/post
+safety pipeline as typed chat (no bypass, no duplicate rows). Turn-taking is
+hands-free: one click starts the mic, VAD segments utterances, empty/duplicate
+transcripts are skipped without calling the model, and barge-in (server VAD
+echo margin + client RMS check) interrupts the reply mid-audio. The frontend
+`Voice Conversation Mode` overlay (`frontend/src/components/VoiceConversation.jsx`
++ `frontend/src/voice/`) owns the live transcript, listening/thinking/speaking
+indicators, mute/pause/end, and releases the mic, AudioContext, and socket on
+end; Text Chat stays fully functional alongside. Hand-off verification:
+**24/24 voice tests** (`tests/test_phase24_voice.py`) plus the full backend
+suite and **144/144 frontend tests**; missing voice models degrade to browser
+TTS instead of failing.
 
 See `docs/architecture.md` for the full design, the research question and the
 list of claims this project must not make.

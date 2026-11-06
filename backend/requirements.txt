@@ -17,3 +17,7 @@ SQLAlchemy==2.0.52
 torch==2.14.0
 transformers==5.17.0
 accelerate==1.15.0
+# Phase 24 - voice conversation (offline, free): Whisper STT + Piper TTS.
+# VAD is pure numpy (already listed above); WebSocket uses uvicorn[standard].
+faster-whisper==1.2.1
+piper-tts==1.8.0

@@ -27,6 +27,7 @@ models/*.gguf
 data/raw/*
 data/processed/*
 data/memory/
+data/voice/
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 # Measured results are evidence: keep metrics/coverage reports and the
