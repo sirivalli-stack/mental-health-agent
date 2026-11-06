@@ -3,12 +3,16 @@ import {
   changePassword,
   clearPersonalization,
   deleteAccount,
+  deleteAllConversations,
   fetchPersonalization,
   fetchPreferences,
+  fetchSettings,
   savePreferences,
+  saveSettings,
   updateProfile,
 } from '../api.js'
 import { initials } from '../greeting.js'
+import { readStoredLanguage, writeStoredLanguage } from '../i18n.js'
 import {
   SIZE_OPTIONS,
   THEME_OPTIONS,
@@ -18,7 +22,8 @@ import {
   writeTextSize,
   writeTheme,
 } from '../theme.js'
-import { ConfirmDialog, Field, PasswordField, Spinner, Switch } from './ui.jsx'
+import { ConfirmDialog, Field, Icon, PasswordField, Spinner, Switch } from './ui.jsx'
+import { isSttSupported, speechController, useVoiceSettings } from '../voice/index.js'
 
 const LENGTH_OPTIONS = [
   { value: 'short', label: 'Short', hint: 'two or three sentences' },
@@ -48,6 +53,7 @@ const LANGUAGE_OPTIONS = [
   ['bn', 'বাংলা'],
   ['ta', 'தமிழ்'],
   ['te', 'తెలుగు'],
+  ['kn', 'ಕನ್ನಡ'],
   ['mr', 'मराठी'],
   ['ur', 'اردو'],
 ]
@@ -259,7 +265,11 @@ function PreferencesSection() {
     let cancelled = false
     fetchPreferences()
       .then((loaded) => {
-        if (!cancelled) setPrefs(loaded)
+        if (!cancelled) {
+          setPrefs(loaded)
+          // device-local mirror so voice input picks the right locale
+          writeStoredLanguage(loaded.language)
+        }
       })
       .catch((e) => {
         if (!cancelled) setError(e.message)
@@ -281,6 +291,7 @@ function PreferencesSection() {
     try {
       const stored = await savePreferences(prefs)
       setPrefs(stored)
+      writeStoredLanguage(stored.language)
       setSaved(true)
     } catch (err) {
       setError(err.message)
@@ -523,6 +534,8 @@ function AppearanceSection({ onThemeChanged }) {
   function chooseTheme(value) {
     setTheme(value)
     writeTheme(value)
+    // re-theme the DOM immediately (the same way chooseSize applies text size)
+    applyAppearance(value, readTextSize())
     onThemeChanged?.(value)
   }
   function chooseSize(value) {
@@ -567,13 +580,196 @@ function AppearanceSection({ onThemeChanged }) {
 }
 
 // ---------------------------------------------------------------------------
+// Voice (Phase 6) - device-local only; nothing here touches the server
+// ---------------------------------------------------------------------------
+
+function VoiceSection() {
+  const [settings, update] = useVoiceSettings()
+  const [voices, setVoices] = useState(() => speechController().voices())
+  const sttSupported = isSttSupported()
+  const ttsSupported = speechController().supported
+
+  // voices can arrive asynchronously (Chrome populates them late)
+  useEffect(() => {
+    const synth = globalThis.speechSynthesis
+    if (!synth) return undefined
+    const refresh = () => setVoices(synth.getVoices())
+    refresh()
+    synth.addEventListener?.('voiceschanged', refresh)
+    // one delayed retry covers browsers that never fire the event
+    const timer = globalThis.setTimeout?.(refresh, 800)
+    return () => {
+      synth.removeEventListener?.('voiceschanged', refresh)
+      if (timer) globalThis.clearTimeout?.(timer)
+    }
+  }, [])
+
+  // only voices matching the current conversation language are offered
+  const lang = readStoredLanguage()
+  const matching = voices.filter((v) => v.lang?.toLowerCase().startsWith(lang.toLowerCase()))
+  const shown = matching.length > 0 ? matching : voices
+
+  return (
+    <section className="card settings-card" aria-label="Voice">
+      <h2>Voice</h2>
+      <p className="desc">
+        Speech runs entirely in your browser. Audio is never uploaded and no
+        recording is stored — recognized text simply appears in the message
+        box for you to review before sending.
+      </p>
+      <div className="settings-group">
+        <div className="switch-row">
+          <span>
+            <span style={{ fontWeight: 600, fontSize: '0.92rem' }}>Microphone input</span>
+            <span className="hint" style={{ display: 'block' }}>
+              {sttSupported
+                ? 'Show the microphone button so you can speak instead of typing.'
+                : 'Not supported in this browser — Chrome and Edge support speech input.'}
+            </span>
+          </span>
+          <Switch
+            checked={settings.sttEnabled && sttSupported}
+            onChange={(sttEnabled) => update({ sttEnabled })}
+            label="Microphone input"
+          />
+        </div>
+        <div className="switch-row">
+          <span>
+            <span style={{ fontWeight: 600, fontSize: '0.92rem' }}>Read replies aloud</span>
+            <span className="hint" style={{ display: 'block' }}>
+              {ttsSupported
+                ? 'Add a play button under each reply to hear it spoken.'
+                : 'Not supported in this browser.'}
+            </span>
+          </span>
+          <Switch
+            checked={settings.ttsEnabled && ttsSupported}
+            onChange={(ttsEnabled) => update({ ttsEnabled })}
+            label="Read replies aloud"
+          />
+        </div>
+        {settings.ttsEnabled && ttsSupported && (
+          <>
+            <Field
+              label="Voice"
+              id="voice-select"
+              hint={matching.length > 0 ? `Voices for your conversation language (${lang}).` : 'Your language has no dedicated voice here; the browser default is used.'}
+            >
+              <select
+                id="voice-select"
+                value={settings.ttsVoice}
+                onChange={(e) => update({ ttsVoice: e.target.value })}
+              >
+                <option value="">Browser default</option>
+                {shown.map((v) => (
+                  <option key={v.voiceURI} value={v.voiceURI}>
+                    {v.name} ({v.lang})
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Speed" id="voice-rate" hint="1 is normal speaking pace.">
+              <select
+                id="voice-rate"
+                value={String(settings.ttsRate)}
+                onChange={(e) => update({ ttsRate: Number(e.target.value) })}
+              >
+                <option value="0.75">Slow</option>
+                <option value="1">Normal</option>
+                <option value="1.25">Brisk</option>
+                <option value="1.5">Fast</option>
+              </select>
+            </Field>
+          </>
+        )}
+      </div>
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Notifications (in-app, server-persisted)
+// ---------------------------------------------------------------------------
+
+function NotificationsSection() {
+  const [settings, setSettings] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchSettings()
+      .then((loaded) => {
+        if (!cancelled) setSettings(loaded)
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e.message)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function toggle(next) {
+    setSaving(true)
+    setSaved(false)
+    setError(null)
+    // optimistic: flip immediately, roll back if the write fails
+    setSettings((prev) => ({ ...prev, dailyReminders: next }))
+    try {
+      const stored = await saveSettings({ dailyReminders: next })
+      setSettings(stored)
+      setSaved(true)
+    } catch (e) {
+      setSettings((prev) => ({ ...prev, dailyReminders: !next }))
+      setError(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="card settings-card" aria-label="Notifications">
+      <h2>Notifications</h2>
+      <p className="desc">
+        Gentle in-app nudges — never email or SMS. Sage never sends you
+        anything outside this app.
+      </p>
+      {!settings && !error && <div className="skeleton" style={{ height: 54 }} />}
+      {settings && (
+        <div className="switch-row">
+          <span>
+            <span style={{ fontWeight: 600, fontSize: '0.92rem' }}>
+              Daily check-in reminder
+            </span>
+            <span className="hint" style={{ display: 'block' }}>
+              A small prompt on the dashboard to log how you're feeling today.
+            </span>
+          </span>
+          <Switch
+            checked={settings.dailyReminders}
+            onChange={(next) => toggle(next)}
+            label="Daily check-in reminder"
+          />
+        </div>
+      )}
+      <Notice kind="ok">{saved ? 'Saved.' : null}</Notice>
+      <Notice kind="error">{error}</Notice>
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Privacy / danger zone
 // ---------------------------------------------------------------------------
 
-function PrivacySection({ onDeleted }) {
+function PrivacySection({ onDeleted, onConversationsChanged }) {
   const [confirming, setConfirming] = useState(false)
+  const [confirmClearAll, setConfirmClearAll] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  const [cleared, setCleared] = useState(false)
 
   async function doDelete() {
     setBusy(true)
@@ -588,19 +784,56 @@ function PrivacySection({ onDeleted }) {
     }
   }
 
+  async function doDeleteAll() {
+    setBusy(true)
+    setError(null)
+    try {
+      await deleteAllConversations()
+      setCleared(true)
+      onConversationsChanged?.() // sidebar + dashboard recents refresh
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setBusy(false)
+      setConfirmClearAll(false)
+    }
+  }
+
   return (
     <section className="card settings-card danger-zone" aria-label="Privacy and data">
       <h2>Privacy &amp; data</h2>
       <p className="desc">
-        Your conversations belong to you. Deleting your account removes your login
-        and every saved conversation and message, permanently.
+        Your conversations belong to you. You can remove them at any time —
+        individually from the sidebar, all at once below, or together with
+        your account.
       </p>
       <div className="settings-actions">
+        <button
+          type="button"
+          className="btn btn-soft-danger"
+          onClick={() => setConfirmClearAll(true)}
+          disabled={busy}
+        >
+          Delete all conversations
+        </button>
         <button type="button" className="btn btn-soft-danger" onClick={() => setConfirming(true)}>
           Delete account and all data
         </button>
+        <Notice kind="ok">
+          {cleared ? 'All conversations deleted.' : null}
+        </Notice>
         <Notice kind="error">{error}</Notice>
       </div>
+      <ConfirmDialog
+        open={confirmClearAll}
+        title="Delete all conversations?"
+        body="Every conversation, message and learned detail will be removed permanently. Your account and settings stay."
+        confirmLabel="Delete all"
+        danger
+        busy={busy}
+        onConfirm={doDeleteAll}
+        onCancel={() => setConfirmClearAll(false)}
+      />
       <ConfirmDialog
         open={confirming}
         title="Delete your account?"
@@ -617,16 +850,36 @@ function PrivacySection({ onDeleted }) {
 
 // ---------------------------------------------------------------------------
 
-export function Settings({ user, onUserChanged, onAccountDeleted, onThemeChanged }) {
+export function Settings({
+  user,
+  onUserChanged,
+  onAccountDeleted,
+  onThemeChanged,
+  onConversationsChanged,
+  onOpenMenu,
+}) {
   return (
     <div className="settings-scroll">
       <div className="settings-inner">
+        <button
+          type="button"
+          className="btn-icon mobile-only page-menu-btn"
+          onClick={onOpenMenu}
+          aria-label="Open navigation"
+        >
+          <Icon name="menu" size={20} />
+        </button>
         <h1>Settings</h1>
         <ProfileSection user={user} onUserChanged={onUserChanged} />
         <PreferencesSection />
         <PersonalizationSection />
+        <VoiceSection />
+        <NotificationsSection />
         <AppearanceSection onThemeChanged={onThemeChanged} />
-        <PrivacySection onDeleted={onAccountDeleted} />
+        <PrivacySection
+          onDeleted={onAccountDeleted}
+          onConversationsChanged={onConversationsChanged}
+        />
       </div>
     </div>
   )

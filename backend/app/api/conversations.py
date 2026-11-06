@@ -6,11 +6,13 @@ otherwise the answer is 404 (the same shape as an unknown id, so ids
 cannot be probed for existence).
 
 * ``GET    /api/conversations``            list the caller's conversations
+* ``DELETE /api/conversations``            forget ALL the caller's conversations
 * ``GET    /api/conversations/{id}``       one conversation's metadata
 * ``GET    /api/conversations/{id}/messages`` the stored transcript
 * ``PATCH  /api/conversations/{id}``       rename
 * ``DELETE /api/conversations/{id}``       forget it everywhere
 * ``GET/PUT /api/preferences``             explicit conversation settings
+* ``GET/PUT /api/settings``                per-user app settings (Phase 21)
 * ``GET    /api/personalization``          what the system learned + flag
 * ``DELETE /api/personalization``          clear learned memory
 """
@@ -22,6 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.auth.deps import user_or_401
 from app.auth.personalization import profile_from_preferences
 from app.auth.schemas import (
+    ConversationBulkDeleteResponse,
     ConversationListResponse,
     ConversationPublic,
     MessageListResponse,
@@ -32,6 +35,7 @@ from app.auth.schemas import (
     RenameConversationRequest,
     StoredMessage,
     UserPreferences,
+    UserSettings,
 )
 from app.auth.store import get_auth_store
 from app.config.settings import get_settings
@@ -70,6 +74,23 @@ def list_conversations(user=Depends(user_or_401)) -> ConversationListResponse:  
     return ConversationListResponse(
         conversations=[ConversationPublic(**row) for row in rows]
     )
+
+
+@router.delete("/conversations", response_model=ConversationBulkDeleteResponse)
+def delete_all_conversations(
+    user=Depends(user_or_401),  # noqa: ANN001
+) -> ConversationBulkDeleteResponse:
+    """Forget **every** conversation the caller owns - engine RAM, memory
+    snapshots, audit rows, stored transcripts and ownership. Other users'
+    conversations are untouched (ids are collected caller-scoped first)."""
+    store = get_auth_store()
+    session_ids = store.conversation_ids_for_user(user["id"])
+    engine = get_state_engine()
+    for session_id in session_ids:
+        engine.reset(session_id)
+        purge_session_turns(session_id)
+        store.delete_conversation_data(session_id)
+    return ConversationBulkDeleteResponse(deleted=len(session_ids))
 
 
 @router.get("/conversations/{session_id}", response_model=ConversationPublic)
@@ -162,6 +183,27 @@ def put_preferences(
         },
     )
     return UserPreferences(**stored)
+
+
+# ---------------------------------------------------------------------------
+# App settings (Phase 21): notifications and similar shell preferences
+# ---------------------------------------------------------------------------
+
+
+@router.get("/settings", response_model=UserSettings)
+def get_user_settings(user=Depends(user_or_401)) -> UserSettings:  # noqa: ANN001
+    return UserSettings(**get_auth_store().get_settings(user["id"]))
+
+
+@router.put("/settings", response_model=UserSettings)
+def put_user_settings(
+    body: UserSettings, user=Depends(user_or_401)  # noqa: ANN001
+) -> UserSettings:
+    """Persist per-user app settings (in-app reminder preferences, ...)."""
+    stored = get_auth_store().set_settings(
+        user["id"], {"daily_reminders": body.daily_reminders}
+    )
+    return UserSettings(**stored)
 
 
 # ---------------------------------------------------------------------------

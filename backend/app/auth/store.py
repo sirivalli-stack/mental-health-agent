@@ -13,6 +13,7 @@ Tables (created additively with ``CREATE TABLE IF NOT EXISTS``):
 ``conversations``  session_id -> user_id ownership, title, timestamps
 ``messages``       the stored transcript (role, text, small meta JSON)
 ``user_preferences`` explicit per-user conversation settings
+``user_settings``    per-user app settings (in-app reminders, ...)
 ================== ====================================================
 
 Why not ``ensure_schema``'s ``user_version`` ladder: Phase 14's guard
@@ -88,6 +89,33 @@ CREATE TABLE IF NOT EXISTS user_preferences (
     personalization_enabled INTEGER NOT NULL DEFAULT 1,
     updated_at              REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS user_settings (
+    user_id         TEXT PRIMARY KEY,
+    daily_reminders INTEGER NOT NULL DEFAULT 1,
+    updated_at      REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS mood_entries (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    TEXT NOT NULL,
+    entry_date TEXT NOT NULL,
+    mood       TEXT NOT NULL,
+    note       TEXT NOT NULL DEFAULT '',
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL
+);
+-- one check-in per user per day (a re-check-in updates in place)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mood_user_date
+    ON mood_entries (user_id, entry_date);
+CREATE TABLE IF NOT EXISTS journal_entries (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    TEXT NOT NULL,
+    title      TEXT NOT NULL DEFAULT '',
+    body       TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_journal_user
+    ON journal_entries (user_id, updated_at DESC);
 """
 
 DEFAULT_PREFERENCES = {
@@ -96,6 +124,10 @@ DEFAULT_PREFERENCES = {
     "asks_questions": True,
     "preferred_language": "en",
     "personalization_enabled": True,
+}
+
+DEFAULT_SETTINGS = {
+    "daily_reminders": True,
 }
 
 
@@ -420,6 +452,49 @@ class AuthStore:
             )
         return out
 
+    def replace_last_assistant_message(
+        self, session_id: str, user_id: str, *, content: str, meta: dict | None = None
+    ) -> dict | None:
+        """Overwrite the newest assistant row (regenerate support).
+
+        Only applies when the transcript ends ``[..., user, assistant]`` -
+        anything else returns ``None`` so the caller can reject the request.
+        Validation and the update run under one lock, so a concurrent write
+        cannot interleave between the check and the replace. The returned row
+        matches ``messages_for_conversation``'s shape (with ``id``).
+        """
+        now = time.time()
+        with self._lock:
+            with self._conn:
+                tail = self._conn.execute(
+                    "SELECT id, role FROM messages WHERE session_id = ? "
+                    "AND user_id = ? ORDER BY id DESC LIMIT 2",
+                    (session_id, user_id),
+                ).fetchall()
+                if (
+                    len(tail) < 2
+                    or tail[0]["role"] != "assistant"
+                    or tail[1]["role"] != "user"
+                ):
+                    return None
+                self._conn.execute(
+                    "UPDATE messages SET content = ?, meta = ?, created_at = ? "
+                    "WHERE id = ?",
+                    (
+                        content,
+                        json.dumps(meta) if meta else None,
+                        now,
+                        tail[0]["id"],
+                    ),
+                )
+        return {
+            "id": tail[0]["id"],
+            "role": "assistant",
+            "content": content,
+            "meta": meta,
+            "created_at": _iso(now),
+        }
+
     # -- preferences --------------------------------------------------------
     def get_preferences(self, user_id: str) -> dict:
         with self._lock:
@@ -465,6 +540,34 @@ class AuthStore:
                 )
         return self.get_preferences(user_id)
 
+    # -- app settings (Phase 21) --------------------------------------------
+    def get_settings(self, user_id: str) -> dict:
+        """Per-user app settings; defaults until the user writes them."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM user_settings WHERE user_id = ?", (user_id,)
+            ).fetchone()
+        if row is None:
+            return dict(DEFAULT_SETTINGS)
+        return {
+            "daily_reminders": bool(row["daily_reminders"]),
+            "updated_at": _iso(row["updated_at"]),
+        }
+
+    def set_settings(self, user_id: str, settings: dict) -> dict:
+        now = time.time()
+        with self._lock:
+            with self._conn:
+                self._conn.execute(
+                    "INSERT INTO user_settings (user_id, daily_reminders, "
+                    "updated_at) VALUES (?, ?, ?) "
+                    "ON CONFLICT(user_id) DO UPDATE SET "
+                    "daily_reminders = excluded.daily_reminders, "
+                    "updated_at = excluded.updated_at",
+                    (user_id, 1 if settings["daily_reminders"] else 0, now),
+                )
+        return self.get_settings(user_id)
+
     # -- account deletion ---------------------------------------------------
     def delete_user(self, user_id: str) -> list[str]:
         """Delete an account and every row scoped to it.
@@ -485,8 +588,131 @@ class AuthStore:
                 self._conn.execute("DELETE FROM messages WHERE user_id = ?", (user_id,))
                 self._conn.execute("DELETE FROM conversations WHERE user_id = ?", (user_id,))
                 self._conn.execute("DELETE FROM user_preferences WHERE user_id = ?", (user_id,))
+                self._conn.execute("DELETE FROM user_settings WHERE user_id = ?", (user_id,))
+                self._conn.execute("DELETE FROM mood_entries WHERE user_id = ?", (user_id,))
+                self._conn.execute("DELETE FROM journal_entries WHERE user_id = ?", (user_id,))
                 self._conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
         return sessions
+
+    # -- wellness: daily mood check-ins (Phase 23) --------------------------
+    def upsert_mood_entry(
+        self, user_id: str, entry_date: str, mood: str, note: str = ""
+    ) -> dict:
+        """Create or replace the check-in for one calendar day.
+
+        Owner-scoped by construction (the unique index is on
+        ``(user_id, entry_date)``), so two users can share a date
+        without ever seeing each other's rows.
+        """
+        now = time.time()
+        with self._lock:
+            with self._conn:
+                self._conn.execute(
+                    "INSERT INTO mood_entries (user_id, entry_date, mood, note, "
+                    "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) "
+                    "ON CONFLICT(user_id, entry_date) DO UPDATE SET "
+                    "mood = excluded.mood, note = excluded.note, "
+                    "updated_at = excluded.updated_at",
+                    (user_id, entry_date, mood, note, now, now),
+                )
+                row = self._conn.execute(
+                    "SELECT * FROM mood_entries WHERE user_id = ? AND entry_date = ?",
+                    (user_id, entry_date),
+                ).fetchone()
+        return _mood_row(row)
+
+    def list_mood_entries(self, user_id: str, limit: int = 90) -> list[dict]:
+        """Newest-first check-in history for one user (their own only)."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM mood_entries WHERE user_id = ? "
+                "ORDER BY entry_date DESC LIMIT ?",
+                (user_id, limit),
+            ).fetchall()
+        return [_mood_row(r) for r in rows]
+
+    def delete_mood_entry(self, user_id: str, entry_id: int) -> bool:
+        """Delete one check-in; False when missing or not the caller's."""
+        with self._lock:
+            with self._conn:
+                cursor = self._conn.execute(
+                    "DELETE FROM mood_entries WHERE id = ? AND user_id = ?",
+                    (entry_id, user_id),
+                )
+        return cursor.rowcount > 0
+
+    # -- wellness: private journal (Phase 23) --------------------------------
+    def create_journal_entry(self, user_id: str, title: str, body: str) -> dict:
+        now = time.time()
+        with self._lock:
+            with self._conn:
+                cursor = self._conn.execute(
+                    "INSERT INTO journal_entries (user_id, title, body, "
+                    "created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                    (user_id, title, body, now, now),
+                )
+                row = self._conn.execute(
+                    "SELECT * FROM journal_entries WHERE id = ?",
+                    (cursor.lastrowid,),
+                ).fetchone()
+        return _journal_row(row)
+
+    def list_journal_entries(self, user_id: str) -> list[dict]:
+        """Newest-first index of one user's entries."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM journal_entries WHERE user_id = ? "
+                "ORDER BY updated_at DESC",
+                (user_id,),
+            ).fetchall()
+        return [_journal_row(r) for r in rows]
+
+    def get_journal_entry(self, user_id: str, entry_id: int) -> dict | None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM journal_entries WHERE id = ? AND user_id = ?",
+                (entry_id, user_id),
+            ).fetchone()
+        return _journal_row(row) if row else None
+
+    def update_journal_entry(
+        self, user_id: str, entry_id: int, *, title: str | None, body: str | None
+    ) -> dict | None:
+        """Partial update; None when missing or not the caller's."""
+        with self._lock:
+            with self._conn:
+                row = self._conn.execute(
+                    "SELECT * FROM journal_entries WHERE id = ? AND user_id = ?",
+                    (entry_id, user_id),
+                ).fetchone()
+                if row is None:
+                    return None
+                self._conn.execute(
+                    "UPDATE journal_entries SET title = ?, body = ?, "
+                    "updated_at = ? WHERE id = ? AND user_id = ?",
+                    (
+                        row["title"] if title is None else title,
+                        row["body"] if body is None else body,
+                        time.time(),
+                        entry_id,
+                        user_id,
+                    ),
+                )
+                row = self._conn.execute(
+                    "SELECT * FROM journal_entries WHERE id = ? AND user_id = ?",
+                    (entry_id, user_id),
+                ).fetchone()
+        return _journal_row(row)
+
+    def delete_journal_entry(self, user_id: str, entry_id: int) -> bool:
+        """Delete one entry; False when missing or not the caller's."""
+        with self._lock:
+            with self._conn:
+                cursor = self._conn.execute(
+                    "DELETE FROM journal_entries WHERE id = ? AND user_id = ?",
+                    (entry_id, user_id),
+                )
+        return cursor.rowcount > 0
 
 
 def _user_row(row: sqlite3.Row | None) -> dict | None:
@@ -498,6 +724,27 @@ def _user_row(row: sqlite3.Row | None) -> dict | None:
         "email": row["email"],
         "display_name": row["display_name"],
         "created_at": _iso(row["created_at"]),
+    }
+
+
+def _mood_row(row: sqlite3.Row | None) -> dict:  # noqa: ANN401 - callers guard None
+    return {
+        "id": row["id"],
+        "date": row["entry_date"],
+        "mood": row["mood"],
+        "note": row["note"],
+        "created_at": _iso(row["created_at"]),
+        "updated_at": _iso(row["updated_at"]),
+    }
+
+
+def _journal_row(row: sqlite3.Row | None) -> dict:  # noqa: ANN401
+    return {
+        "id": row["id"],
+        "title": row["title"],
+        "body": row["body"],
+        "created_at": _iso(row["created_at"]),
+        "updated_at": _iso(row["updated_at"]),
     }
 
 

@@ -36,6 +36,7 @@ import httpx
 
 from app.config.logging_config import get_logger
 from app.config.settings import get_settings
+from app.i18n import LANGUAGE_NAMES
 from app.models.schemas import SystemProfile, UserState
 from app.personalization import has_learnings, render_profile
 
@@ -159,15 +160,28 @@ def build_system_prompt(
     *,
     disclaimer: str | None = None,
     safety_notes: str | None = None,
+    reply_language: str | None = None,
 ) -> str:
     """Assemble the system prompt for one turn and one ablation profile.
 
     ``safety_notes`` are the pre-generation gate's flags (Phase 10); they sit
     between the state block and the disclaimer so the disclaimer always ends
     the prompt.
+
+    ``reply_language`` (Phase 5) is the user's *current* preferred language;
+    it wins over the conversation profile's seeded value so a mid-chat
+    language switch applies immediately without rewriting stored state.
     """
     settings = get_settings()
     parts = [_BASE_INSTRUCTIONS]
+    lang_code = _reply_language_code(state, reply_language)
+    if lang_code != "en":
+        name = LANGUAGE_NAMES.get(lang_code, lang_code)
+        parts.append(
+            f"Language: write your entire reply in {name} "
+            f"(language code: {lang_code}). Do not switch to another "
+            "language mid-reply; keep the same tone and length as usual."
+        )
     block = _state_block(profile, state)
     if block:
         parts.append(block)
@@ -177,12 +191,22 @@ def build_system_prompt(
     return "\n".join(parts).strip() + "\n"
 
 
+def _reply_language_code(state: UserState | None, override: str | None) -> str:
+    """Explicit preference > conversation profile > English."""
+    for candidate in (override, state.profile.preferred_language if state else None):
+        code = (candidate or "").strip().lower()
+        if code:
+            return code
+    return "en"
+
+
 def build_messages(
     profile: SystemProfile | str,
     state: UserState | None,
     user_text: str,
     *,
     safety_notes: str | None = None,
+    reply_language: str | None = None,
 ) -> list[Message]:
     """system (+ state + safety notes) + the single user message for this turn."""
     if not isinstance(user_text, str) or not user_text.strip():
@@ -190,7 +214,12 @@ def build_messages(
     return [
         {
             "role": "system",
-            "content": build_system_prompt(profile, state, safety_notes=safety_notes),
+            "content": build_system_prompt(
+                profile,
+                state,
+                safety_notes=safety_notes,
+                reply_language=reply_language,
+            ),
         },
         {"role": "user", "content": user_text},
     ]
@@ -380,11 +409,22 @@ class LLMService:
         user_text: str,
         *,
         safety_notes: str | None = None,
+        reply_language: str | None = None,
         **kwargs: Any,
     ) -> LLMReply:
-        """Convenience: build the messages for one turn and generate."""
+        """Convenience: build the messages for one turn and generate.
+
+        ``reply_language`` (Phase 5) pins the reply to the user's current
+        preferred language without touching stored conversation state.
+        """
         return self.chat(
-            build_messages(profile, state, user_text, safety_notes=safety_notes),
+            build_messages(
+                profile,
+                state,
+                user_text,
+                safety_notes=safety_notes,
+                reply_language=reply_language,
+            ),
             **kwargs,
         )
 

@@ -83,6 +83,14 @@ export function resetSession(sessionId) {
   })
 }
 
+/** Re-answer the conversation's last user message (Phase 21). */
+export function regenerateChat({ sessionId }) {
+  return request('/api/chat/regenerate', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId }),
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Auth (Phase 20)
 // ---------------------------------------------------------------------------
@@ -169,6 +177,11 @@ export function deleteConversation(sessionId) {
   })
 }
 
+/** Forget every conversation the caller owns (Phase 21). */
+export function deleteAllConversations() {
+  return request('/api/conversations', { method: 'DELETE' })
+}
+
 // ---------------------------------------------------------------------------
 // Preferences + personalization (Phase 20)
 // ---------------------------------------------------------------------------
@@ -213,4 +226,110 @@ export function fetchPersonalization() {
 
 export function clearPersonalization() {
   return request('/api/personalization', { method: 'DELETE' })
+}
+
+// ---------------------------------------------------------------------------
+// App settings (Phase 21): in-app notification preferences
+// ---------------------------------------------------------------------------
+
+/** Backend contract -> the UI shape. */
+export function fromServerSettings(settings) {
+  return {
+    dailyReminders: settings.daily_reminders,
+    updatedAt: settings.updated_at ?? null,
+  }
+}
+
+/** The UI shape -> the backend contract. */
+export function toServerSettings(settings) {
+  return { daily_reminders: settings.dailyReminders }
+}
+
+export function fetchSettings() {
+  return request('/api/settings').then(fromServerSettings)
+}
+
+/** Always GET-then-PUT: the PUT body must carry every field. */
+export async function saveSettings(settings) {
+  const current = await fetchSettings()
+  const body = { ...current, ...settings }
+  return request('/api/settings', {
+    method: 'PUT',
+    body: JSON.stringify(toServerSettings(body)),
+  }).then(fromServerSettings)
+}
+
+// ---------------------------------------------------------------------------
+// Wellness (Phase 23): daily mood check-ins + private journal
+// ---------------------------------------------------------------------------
+// Records are the caller's own, self-reported and never analysed. Converters
+// mirror the rest of the file: server snake_case <-> UI camelCase.
+
+export function toMoodEntry(row) {
+  if (!row) return null
+  return {
+    id: row.id,
+    date: row.date,
+    mood: row.mood,
+    note: row.note ?? '',
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+export function toJournalEntry(row) {
+  if (!row) return null
+  return {
+    id: row.id,
+    title: row.title ?? '',
+    body: row.body ?? '',
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+export function listMoods({ limit = 90 } = {}) {
+  return request(`/api/moods?limit=${Number(limit) || 90}`).then((b) =>
+    (b.entries ?? []).map(toMoodEntry),
+  )
+}
+
+/** Upsert the check-in for one day (defaults to today, server-side). */
+export function saveMood({ mood, note = '', date = null }) {
+  const body = { mood, note }
+  if (date) body.date = date
+  return request('/api/moods', { method: 'PUT', body: JSON.stringify(body) }).then(toMoodEntry)
+}
+
+export function deleteMood(entryId) {
+  return request(`/api/moods/${Number(entryId)}`, { method: 'DELETE' }).then(toMoodEntry)
+}
+
+export function listJournal() {
+  return request('/api/journal').then((b) => (b.entries ?? []).map(toJournalEntry))
+}
+
+export function createJournal({ title = '', body }) {
+  return request('/api/journal', {
+    method: 'POST',
+    body: JSON.stringify({ title, body }),
+  }).then(toJournalEntry)
+}
+
+export function fetchJournalEntry(entryId) {
+  return request(`/api/journal/${Number(entryId)}`).then(toJournalEntry)
+}
+
+export function updateJournal(entryId, { title, body }) {
+  const patch = {}
+  if (title !== undefined) patch.title = title
+  if (body !== undefined) patch.body = body
+  return request(`/api/journal/${Number(entryId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  }).then(toJournalEntry)
+}
+
+export function deleteJournal(entryId) {
+  return request(`/api/journal/${Number(entryId)}`, { method: 'DELETE' }).then(toJournalEntry)
 }

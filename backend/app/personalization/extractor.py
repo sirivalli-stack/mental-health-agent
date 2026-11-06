@@ -68,6 +68,7 @@ LANGUAGE_CODES: dict[str, str] = {
     "telugu": "te",
     "marathi": "mr",
     "urdu": "ur",
+    "kannada": "kn",
 }
 
 # Order matters: the first matching rule wins when a message contains several.

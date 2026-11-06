@@ -225,6 +225,12 @@ class ChatRequest(BaseModel):
         return v
 
 
+class RegenerateRequest(BaseModel):
+    """POST /api/chat/regenerate - re-answer the conversation's last user turn."""
+
+    session_id: str = Field(min_length=1, max_length=128)
+
+
 class ChatResponse(BaseModel):
     session_id: str
     turn_index: int

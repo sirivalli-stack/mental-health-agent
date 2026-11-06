@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   fetchMessages,
   fetchSession,
+  regenerateChat,
   renameConversation,
   sendChat,
 } from '../api.js'
@@ -124,6 +125,37 @@ export function Chat({
     if (!retryText) return
     setMessages((prev) => [...prev, userBubble(retryText)])
     deliver(retryText)
+  }
+
+  // ---- regenerate (Phase 21) ---------------------------------------------
+  /**
+   * Ask the backend for a fresh answer to the last user turn. The old reply
+   * is restored if the request fails, so the transcript is never lost. The
+   * backend re-runs the full pipeline (pre-gate -> model -> post-gate), so
+   * regeneration can never bypass a safety check.
+   */
+  async function handleRegenerate() {
+    if (!activeId || anonymous || busy) return
+    const last = messages[messages.length - 1]
+    if (!last || last.role !== 'assistant') return
+
+    setBusy(true)
+    setError(null)
+    setRetryText(null)
+    try {
+      const response = await regenerateChat({ sessionId: activeId })
+      const fresh = {
+        ...toExchange(response),
+        at: new Date().toISOString(), // toExchange has no timestamp
+      }
+      setMessages((prev) => [...prev.slice(0, -1), fresh])
+      setState(response.state ?? null)
+      onConversationsChanged?.()
+    } catch (e) {
+      setError(e.message) // the original reply is still in place
+    } finally {
+      setBusy(false)
+    }
   }
 
   function pickStarter(text) {
@@ -253,7 +285,14 @@ export function Chat({
               </div>
             </div>
           ) : (
-            <MessageList messages={messages} busy={busy} loading={loading} />
+            <MessageList
+              messages={messages}
+              busy={busy}
+              loading={loading}
+              onRegenerate={
+                activeId && !anonymous && !busy ? handleRegenerate : null
+              }
+            />
           )}
 
           <div className="composer-wrap">

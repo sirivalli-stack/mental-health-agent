@@ -8,7 +8,7 @@ job and are unit-tested instead).
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -232,6 +232,129 @@ class LearnedItem(BaseModel):
     kind: str          # name | communication_style | preferred_language | preference | topic_to_avoid
     value: str
     conversations: int
+
+
+class UserSettings(BaseModel):
+    """Per-user app settings (in-app reminders, ...).
+
+    Unlike ``UserPreferences`` (which steers conversations) these control
+    the application shell. Defaults apply until the user writes them.
+    """
+
+    daily_reminders: bool = True
+    updated_at: datetime | None = None
+
+
+class ConversationBulkDeleteResponse(BaseModel):
+    """DELETE /api/conversations - how many conversations were removed."""
+
+    deleted: int
+    status: Literal["deleted"] = "deleted"
+
+
+# ---------------------------------------------------------------------------
+# Wellness (Phase 23): mood check-ins + private journal
+# ---------------------------------------------------------------------------
+
+# The seven check-in moods from the product spec. A check-in is a
+# self-reported feeling for the day - never a diagnosis, never analysed
+# by the classifiers, never shown to anyone else.
+MoodLiteral = Literal[
+    "happy", "calm", "sad", "anxious", "stressed", "angry", "overwhelmed"
+]
+
+MAX_MOOD_NOTE_CHARS = 2000
+MAX_JOURNAL_TITLE_CHARS = 120
+MAX_JOURNAL_BODY_CHARS = 20_000
+
+
+class MoodUpsertRequest(BaseModel):
+    """One daily check-in. ``date`` defaults to today (UTC, YYYY-MM-DD)."""
+
+    mood: MoodLiteral
+    note: str = Field(default="", max_length=MAX_MOOD_NOTE_CHARS)
+    date: str | None = None
+
+    @field_validator("date")
+    @classmethod
+    def _iso_date(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        try:
+            parsed = date.fromisoformat(value)
+        except ValueError as exc:
+            raise ValueError("date must be YYYY-MM-DD") from exc
+        return parsed.isoformat()
+
+    @field_validator("note")
+    @classmethod
+    def _strip_note(cls, value: str) -> str:
+        return value.strip()
+
+
+class MoodEntry(BaseModel):
+    """A stored daily check-in (private to its owner)."""
+
+    id: int
+    date: str
+    mood: MoodLiteral
+    note: str = ""
+    created_at: datetime
+    updated_at: datetime
+
+
+class MoodListResponse(BaseModel):
+    entries: list[MoodEntry] = Field(default_factory=list)
+
+
+class JournalCreateRequest(BaseModel):
+    title: str = Field(default="", max_length=MAX_JOURNAL_TITLE_CHARS)
+    body: str = Field(min_length=1, max_length=MAX_JOURNAL_BODY_CHARS)
+
+    @field_validator("title", "body", mode="before")
+    @classmethod
+    def _strip(cls, value):  # noqa: ANN001 - validated input, any type
+        # strip BEFORE the length checks: "   " must fail min_length,
+        # not pass it and then become an empty stored entry
+        return value.strip() if isinstance(value, str) else value
+
+
+class JournalUpdateRequest(BaseModel):
+    title: str | None = Field(default=None, max_length=MAX_JOURNAL_TITLE_CHARS)
+    body: str | None = Field(default=None, max_length=MAX_JOURNAL_BODY_CHARS)
+
+    @field_validator("title", mode="before")
+    @classmethod
+    def _strip_title(cls, value: str | None) -> str | None:
+        return value.strip() if isinstance(value, str) else value
+
+    @field_validator("body", mode="before")
+    @classmethod
+    def _strip_body(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip() if isinstance(value, str) else value
+        if stripped == "":
+            # a journal entry must always say something - never blank it
+            raise ValueError("body must not be empty")
+        return stripped
+
+
+class JournalEntry(BaseModel):
+    """One private journal entry (never analysed, never shared)."""
+
+    id: int
+    title: str
+    body: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class JournalListResponse(BaseModel):
+    """Journal index - newest first, bodies included (entries are short
+    enough that splitting them would only add a round-trip)."""
+
+    entries: list[JournalEntry] = Field(default_factory=list)
 
 
 class PersonalizationView(BaseModel):

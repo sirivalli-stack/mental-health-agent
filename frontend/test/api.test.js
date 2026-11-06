@@ -1,12 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  deleteAllConversations,
   fetchHealth,
+  fetchSettings,
   fromServerPreferences,
+  fromServerSettings,
   login,
   register,
+  regenerateChat,
   savePreferences,
+  saveSettings,
   sendChat,
   toServerPreferences,
+  toServerSettings,
 } from '../src/api.js'
 
 describe('api client', () => {
@@ -164,5 +170,117 @@ describe('preference mapping', () => {
     expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual(toServerPreferences(ui))
     expect(saved.responseLength).toBe('short')
     vi.unstubAllGlobals()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Phase 21: regenerate, app settings, bulk delete
+// ---------------------------------------------------------------------------
+
+describe('regenerate', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('posts the session id to /api/chat/regenerate', async () => {
+    const response = { reply: 'fresh', source: 'llm', turn_index: 3, session_id: 's1' }
+    fetch.mockResolvedValue({ ok: true, json: async () => response })
+
+    const out = await regenerateChat({ sessionId: 's1' })
+
+    expect(out).toEqual(response)
+    const [url, options] = fetch.mock.calls[0]
+    expect(url).toBe('/api/chat/regenerate')
+    expect(options.method).toBe('POST')
+    expect(JSON.parse(options.body)).toEqual({ session_id: 's1' })
+  })
+
+  it('surfaces the backend error message', async () => {
+    fetch.mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({
+        detail: { error: 'nothing_to_regenerate', detail: 'no trailing reply' },
+      }),
+    })
+    await expect(regenerateChat({ sessionId: 's1' })).rejects.toThrow('no trailing reply')
+  })
+})
+
+describe('app settings', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('maps the backend contract onto the UI shape', () => {
+    expect(fromServerSettings({ daily_reminders: false, updated_at: 't' })).toEqual({
+      dailyReminders: false,
+      updatedAt: 't',
+    })
+    expect(fromServerSettings({ daily_reminders: true })).toEqual({
+      dailyReminders: true,
+      updatedAt: null,
+    })
+    expect(toServerSettings({ dailyReminders: false })).toEqual({ daily_reminders: false })
+  })
+
+  it('fetchSettings reads GET /api/settings', async () => {
+    fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ daily_reminders: false, updated_at: null }),
+    })
+    const out = await fetchSettings()
+    expect(fetch.mock.calls[0][0]).toBe('/api/settings')
+    expect(out.dailyReminders).toBe(false)
+  })
+
+  it('saveSettings GETs the current state before PUTting', async () => {
+    fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ daily_reminders: true, updated_at: null }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ daily_reminders: false, updated_at: 'now' }),
+      })
+
+    const out = await saveSettings({ dailyReminders: false })
+
+    expect(fetch.mock.calls[0][1]?.method ?? 'GET').toBe('GET')
+    const [putUrl, putOptions] = fetch.mock.calls[1]
+    expect(putUrl).toBe('/api/settings')
+    expect(putOptions.method).toBe('PUT')
+    // the PUT carries every field (the backend resets omitted ones)
+    expect(JSON.parse(putOptions.body)).toEqual({ daily_reminders: false })
+    expect(out.dailyReminders).toBe(false)
+    expect(out.updatedAt).toBe('now')
+  })
+})
+
+describe('bulk conversation deletion', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('sends DELETE to /api/conversations and returns the count', async () => {
+    fetch.mockResolvedValue({ ok: true, json: async () => ({ deleted: 3, status: 'deleted' }) })
+    const out = await deleteAllConversations()
+    const [url, options] = fetch.mock.calls[0]
+    expect(url).toBe('/api/conversations')
+    expect(options.method).toBe('DELETE')
+    expect(out.deleted).toBe(3)
   })
 })

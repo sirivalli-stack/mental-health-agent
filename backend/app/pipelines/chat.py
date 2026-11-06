@@ -60,6 +60,7 @@ from app.services.llm_service import (
     LLMUnavailableError,
     get_llm_service,
 )
+from app.i18n import translate_for_analysis
 from app.state_engine import get_state_engine
 
 if TYPE_CHECKING:
@@ -83,6 +84,25 @@ _UNAVAILABLE_REPLY = (
 def _label_text(label: object) -> str:
     """Enum labels expose ``.value``; plain-string labels (emotion) do not."""
     return str(getattr(label, "value", label))
+
+
+def _analysis_text(message: str) -> str:
+    """English rendering of ``message`` for the analysis stages (Phase 5).
+
+    ``translate_for_analysis`` already fails open internally; this second
+    guard makes fail-open a property of the *pipeline*: no bug or future
+    change in the translation layer can ever block or delay a turn. On any
+    failure the safety gates run on the original text - exactly the
+    pre-Phase-5 behaviour.
+    """
+    try:
+        return translate_for_analysis(message)
+    except Exception as exc:  # noqa: BLE001 - analysis must never fail a turn
+        logger.warning(
+            "analysis translation layer failed (%s); using the original text",
+            type(exc).__name__,
+        )
+        return message
 
 
 @dataclass(frozen=True)
@@ -161,6 +181,7 @@ def run_chat_turn(
     turn_log: TurnLog | None = None,
     initial_profile=None,  # noqa: ANN001 - UserProfile | None, Phase 20
     personalization_enabled: bool = True,
+    reply_language: str | None = None,  # Phase 5: current preferred language
 ) -> ChatOutcome:
     """Run one full turn: state -> pre-gate -> LLM -> post-gate.
 
@@ -171,6 +192,13 @@ def run_chat_turn(
     ``personalization_enabled=False`` skips extractor learning for this
     turn (the user's privacy setting). Both defaults leave Phases 12-18
     behaviour byte-identical.
+
+    Phase 5 (multilingual): non-Latin-script messages are translated to
+    English **for the analysis stages only** (state extraction, crisis
+    rules, classifiers - which are English-trained); the model still
+    answers the user's original words, ``reply_language`` pins the reply
+    language, and the translation layer fails open so an English turn is
+    unchanged and a translation error never blocks a conversation.
     """
     settings = get_settings()
     active_engine = engine or get_state_engine()
@@ -182,18 +210,25 @@ def run_chat_turn(
     active_log = turn_log if turn_log is not None else get_turn_log()
     started = time.perf_counter()
 
+    # Phase 5: what the English-trained analysis stages should read.
+    # Latin-script input short-circuits inside translate_for_analysis, so
+    # the classic path is byte-identical to Phases 12-20; any failure at
+    # all falls back to the original text (never blocks a turn).
+    analysis_text = _analysis_text(message)
+
     # 1. state update - always runs so history/trends/memory stay coherent.
     #    `initial_profile` (Phase 20) seeds a brand-new conversation with the
     #    user's explicit preferences; None keeps the classic path exactly.
     state = active_engine.update(
         session_id,
-        message,
+        analysis_text,
         profile=initial_profile,
         extract_profile=personalization_enabled,
     )
 
-    # 2. pre-generation gate (state-aware)
-    pre = (pre_gate or build_pre_gate()).evaluate(message, state=state)
+    # 2. pre-generation gate (state-aware) - on the analysis text so the
+    #    English crisis rules also cover Indic input (never weaker).
+    pre = (pre_gate or build_pre_gate()).evaluate(analysis_text, state=state)
 
     def _audit(source: ChatSource, reply: str, post: PostGenerationDecision | None) -> None:
         """One metadata row per turn - never raises (best effort, no text)."""
@@ -241,7 +276,8 @@ def run_chat_turn(
             latency_ms=latency,
         )
 
-    # 3. generation
+    # 3. generation - the model answers the user's ORIGINAL words, with the
+    #    reply pinned to the current preferred language (Phase 5).
     active_llm = llm if llm is not None else get_llm_service()
     try:
         draft = active_llm.complete(
@@ -249,6 +285,7 @@ def run_chat_turn(
             state,
             message,
             safety_notes=pre.prompt_notes or None,
+            reply_language=reply_language,
         ).text
     except (LLMUnavailableError, LLMProtocolError) as exc:
         latency = (time.perf_counter() - started) * 1000
@@ -275,6 +312,141 @@ def run_chat_turn(
     latency = (time.perf_counter() - started) * 1000
     logger.info(
         "chat turn sid=%s source=%s pre=%s post=%s guardrail=%s chars=%d",
+        session_id,
+        source,
+        ",".join(pre.reasons) or "-",
+        ",".join(post.reasons) or "-",
+        post.guardrail_label or "-",
+        len(message),
+    )
+    _audit(source, post.reply, post)
+    return ChatOutcome(
+        reply=post.reply,
+        source=source,
+        state=state,
+        profile=active_profile,
+        pre=pre,
+        post=post,
+        latency_ms=latency,
+    )
+
+
+def rerun_reply(
+    message: str,
+    *,
+    session_id: str,
+    state: UserState,
+    profile: SystemProfile | str | None = None,
+    llm: "LLMService | None" = None,
+    pre_gate: "PreGenerationGate | None" = None,
+    post_gate: "PostGenerationGate | None" = None,
+    turn_log: TurnLog | None = None,
+    reply_language: str | None = None,  # Phase 5: current preferred language
+) -> ChatOutcome:
+    """Re-answer a message that is **already recorded** in the session.
+
+    Used by ``POST /api/chat/regenerate`` ("regenerate response").
+
+    Why not just call :func:`run_chat_turn` again: ``run_chat_turn`` starts
+    with ``StateEngine.update()``, which would record the *same* message a
+    second time - duplicating it in the session window, the memory snapshot
+    and the audit trail. Regeneration changes only the reply, so the state
+    stays exactly as it was when the message first arrived.
+
+    Safety is **not** relaxed: the pre-generation gate re-evaluates the
+    original message against the current state, the model is called through
+    the same path, and the post-generation gate screens the new draft. The
+    extractor does not learn again (it already did on the first pass).
+    """
+    settings = get_settings()
+    active_profile: SystemProfile = SystemProfile(
+        profile if profile is not None else settings.system_profile
+    )
+    active_log = turn_log if turn_log is not None else get_turn_log()
+    started = time.perf_counter()
+
+    # The state is the one recorded when the message arrived - never updated.
+    # Phase 5: the gate reads the English analysis rendering (fail-open),
+    # exactly like run_chat_turn, so regeneration is never a weaker path.
+    analysis_text = _analysis_text(message)
+    pre = (pre_gate or build_pre_gate()).evaluate(analysis_text, state=state)
+
+    def _audit(source: ChatSource, reply: str, post: PostGenerationDecision | None) -> None:
+        if active_log is None:
+            return
+        try:
+            active_log.record(
+                session_id=session_id,
+                turn_index=state.turn_index,
+                profile=active_profile.value,
+                source=source,
+                risk_level=state.risk.level.value,
+                sentiment=_label_text(state.sentiment.label),
+                emotion=_label_text(state.emotion.label),
+                pre_action=pre.action,
+                pre_reasons=tuple(pre.reasons),
+                post_action=post.action if post is not None else None,
+                post_reasons=tuple(post.reasons) if post is not None else (),
+                guardrail_label=(post.guardrail_label if post is not None else None),
+                message_chars=len(message),
+                reply_chars=len(reply),
+                latency_ms=int(latency),
+            )
+        except Exception:  # noqa: BLE001 - audit must never break a turn
+            logger.warning("turn audit failed sid=%s", session_id, exc_info=True)
+
+    if not pre.allowed:
+        latency = (time.perf_counter() - started) * 1000
+        logger.info(
+            "chat rerun sid=%s source=pre_blocked reasons=%s chars=%d",
+            session_id,
+            ",".join(pre.reasons) or "-",
+            len(message),
+        )
+        reply = pre.blocked_reply or ""
+        _audit("pre_blocked", reply, None)
+        return ChatOutcome(
+            reply=reply,
+            source="pre_blocked",
+            state=state,
+            profile=active_profile,
+            pre=pre,
+            latency_ms=latency,
+        )
+
+    active_llm = llm if llm is not None else get_llm_service()
+    try:
+        draft = active_llm.complete(
+            active_profile,
+            state,
+            message,
+            safety_notes=pre.prompt_notes or None,
+            reply_language=reply_language,
+        ).text
+    except (LLMUnavailableError, LLMProtocolError) as exc:
+        latency = (time.perf_counter() - started) * 1000
+        logger.warning(
+            "chat rerun sid=%s source=llm_unavailable error=%s chars=%d",
+            session_id,
+            type(exc).__name__,
+            len(message),
+        )
+        _audit("llm_unavailable", _UNAVAILABLE_REPLY, None)
+        return ChatOutcome(
+            reply=_UNAVAILABLE_REPLY,
+            source="llm_unavailable",
+            state=state,
+            profile=active_profile,
+            pre=pre,
+            llm_error=str(exc),
+            latency_ms=latency,
+        )
+
+    post = (post_gate or build_post_gate()).evaluate(draft)
+    source: ChatSource = "llm" if post.served else "post_fallback"
+    latency = (time.perf_counter() - started) * 1000
+    logger.info(
+        "chat rerun sid=%s source=%s pre=%s post=%s guardrail=%s chars=%d",
         session_id,
         source,
         ",".join(pre.reasons) or "-",

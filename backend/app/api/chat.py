@@ -8,6 +8,8 @@ Endpoints
 * ``POST /api/chat``            one turn; new session when ``session_id`` is
                                 omitted; optional per-request ``profile``
                                 override for ablation runs.
+* ``POST /api/chat/regenerate`` re-answer the last stored user turn,
+                                replacing only the reply (Phase 21).
 * ``GET  /api/sessions/{id}``   the current ``UserState`` (the research
                                 artefact) or 404.
 * ``DELETE /api/sessions/{id}`` forget the session in RAM and on disk.
@@ -42,10 +44,11 @@ from app.models.schemas import (
     ChatRequest,
     ChatResponse,
     ErrorResponse,
+    RegenerateRequest,
     SessionResetResponse,
     UserState,
 )
-from app.pipelines.chat import post_to_schema, pre_to_schema, run_chat_turn
+from app.pipelines.chat import post_to_schema, pre_to_schema, rerun_reply, run_chat_turn
 from app.pipelines.turn_log import purge_session_turns
 from app.state_engine import get_state_engine
 
@@ -55,6 +58,13 @@ router = APIRouter(prefix="/api", tags=["chat"])
 def _not_found(error: str, detail: str) -> HTTPException:
     return HTTPException(
         status_code=404,
+        detail=ErrorResponse(error=error, detail=detail).model_dump(),
+    )
+
+
+def _bad_request(error: str, detail: str) -> HTTPException:
+    return HTTPException(
+        status_code=400,
         detail=ErrorResponse(error=error, detail=detail).model_dump(),
     )
 
@@ -70,6 +80,7 @@ def chat(
 
     initial_profile = None
     personalization_enabled = True
+    reply_language = None  # Phase 5: current preference, None for anonymous
     if user is not None:
         store = get_auth_store()
         if request.session_id is not None:
@@ -78,6 +89,7 @@ def chat(
                 raise _not_found("conversation_not_found", session_id)
         prefs = store.get_preferences(user["id"])
         personalization_enabled = bool(prefs["personalization_enabled"])
+        reply_language = prefs["preferred_language"]
         engine = get_state_engine()
         is_new = (
             engine.record(session_id) is None
@@ -100,6 +112,7 @@ def chat(
         profile=request.profile,
         initial_profile=initial_profile,
         personalization_enabled=personalization_enabled,
+        reply_language=reply_language,
     )
 
     if user is not None:
@@ -120,6 +133,85 @@ def chat(
 
     return ChatResponse(
         session_id=session_id,
+        turn_index=outcome.state.turn_index,
+        reply=outcome.reply,
+        system_profile=outcome.profile,
+        state=outcome.state,
+        pre_safety=pre_to_schema(outcome.pre),
+        post_safety=post_to_schema(outcome.post) if outcome.post else None,
+        latency_ms=outcome.latency_ms,
+        disclaimer=get_settings().safety_disclaimer,
+        source=outcome.source,
+    )
+
+
+@router.post("/chat/regenerate", response_model=ChatResponse)
+def regenerate(
+    request: RegenerateRequest,
+    user=Depends(current_user),  # noqa: ANN001 - dict | None
+) -> ChatResponse:
+    """Re-answer the conversation's last user message.
+
+    The stored transcript must end ``[..., user, assistant]``; only the
+    assistant row is replaced (its text, meta and timestamp), so history
+    never gains duplicate user messages. The full pipeline runs again -
+    state-aware pre-gate, model, post-gate - so regeneration can never
+    bypass a safety check. Anonymous mode has no stored transcripts to
+    regenerate, hence the 400.
+    """
+    if user is None:
+        raise _bad_request(
+            "regenerate_unavailable",
+            "regeneration requires stored conversation history",
+        )
+    store = get_auth_store()
+    if store.conversation_owner(request.session_id) != user["id"]:
+        raise _not_found("conversation_not_found", request.session_id)
+
+    messages = store.messages_for_conversation(request.session_id, user["id"])
+    if (
+        len(messages) < 2
+        or messages[-1]["role"] != "assistant"
+        or messages[-2]["role"] != "user"
+    ):
+        raise _bad_request(
+            "nothing_to_regenerate",
+            "the conversation does not end with a reply to regenerate",
+        )
+
+    engine = get_state_engine()
+    state = engine.get(request.session_id) or engine.recall(request.session_id)
+    if state is None:
+        raise _not_found("session_not_found", request.session_id)
+
+    reply_language = store.get_preferences(user["id"])["preferred_language"]
+    outcome = rerun_reply(
+        messages[-2]["content"],
+        session_id=request.session_id,
+        state=state,
+        reply_language=reply_language,
+    )
+
+    replaced = store.replace_last_assistant_message(
+        request.session_id,
+        user["id"],
+        content=outcome.reply,
+        meta={
+            "source": outcome.source,
+            "risk": outcome.state.risk.level.value,
+            "latency_ms": round(outcome.latency_ms, 1),
+            "guardrail": (outcome.post.guardrail_label if outcome.post else None),
+            "regenerated": True,
+        },
+    )
+    if replaced is None:  # the transcript changed under us (very rare)
+        raise _bad_request(
+            "nothing_to_regenerate",
+            "the conversation does not end with a reply to regenerate",
+        )
+
+    return ChatResponse(
+        session_id=request.session_id,
         turn_index=outcome.state.turn_index,
         reply=outcome.reply,
         system_profile=outcome.profile,

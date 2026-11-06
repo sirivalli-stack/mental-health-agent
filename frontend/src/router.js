@@ -5,12 +5,24 @@
  *   #/              home (personalized welcome)
  *   #/chat          chat workspace (no active conversation)
  *   #/chat/:id      one conversation
+ *   #/mood          mood check-in history + weekly/monthly views
+ *   #/journal       private journal
+ *   #/wellness      wellness activities (breathing, grounding, ...)
  *   #/settings      settings + personalization
  *   #/login         sign in
  *   #/register      create account
  */
 
-const ROUTE_NAMES = new Set(['home', 'chat', 'settings', 'login', 'register'])
+const ROUTE_NAMES = new Set([
+  'home',
+  'chat',
+  'mood',
+  'journal',
+  'wellness',
+  'settings',
+  'login',
+  'register',
+])
 
 export function parseRoute(hash) {
   const raw = String(hash ?? '').replace(/^#/, '')
@@ -33,6 +45,9 @@ export function parseRoute(hash) {
 export const routes = {
   home: () => '#/',
   chat: (id) => (id ? `#/chat/${encodeURIComponent(id)}` : '#/chat'),
+  mood: () => '#/mood',
+  journal: () => '#/journal',
+  wellness: () => '#/wellness',
   settings: () => '#/settings',
   login: () => '#/login',
   register: () => '#/register',

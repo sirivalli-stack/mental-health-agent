@@ -13,7 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from app.api import auth, chat, conversations, health
+from app.api import auth, chat, conversations, health, wellness
 from app.config.logging_config import configure_logging, get_logger
 from app.config.settings import get_settings
 from app.models.schemas import ErrorResponse
@@ -63,6 +63,8 @@ app.include_router(chat.router)
 # after the chat router; all routes live under /api/auth and /api/*.
 app.include_router(auth.router)
 app.include_router(conversations.router)
+# Phase 23: mood check-ins + journal (owner-scoped wellness records).
+app.include_router(wellness.router)
 
 
 @app.get("/", tags=["system"])

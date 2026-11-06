@@ -53,7 +53,37 @@ export function resolveTheme(pref, prefersDark) {
   return prefersDark ? 'dark' : 'light'
 }
 
-/** Apply theme + text size to the document root; returns the resolved theme. */
+/**
+ * Subscribe to OS light/dark changes. Returns an unsubscribe function.
+ * Safe no-op when matchMedia is unavailable (unit tests, old browsers).
+ */
+export function watchSystemTheme(onChange) {
+  const mq =
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-color-scheme: dark)')
+      : null
+  if (!mq) return () => {}
+  const handler = (event) => onChange(event ?? { matches: mq.matches })
+  if (typeof mq.addEventListener === 'function') {
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }
+  if (typeof mq.addListener === 'function') {
+    // Safari <= 13 style
+    mq.addListener(handler)
+    return () => mq.removeListener(handler)
+  }
+  return () => {}
+}
+
+let themeAnimTimer = null
+
+/**
+ * Apply theme + text size to the document root; returns the resolved theme.
+ * On an actual theme *change* the root briefly gets the `theme-anim` class so
+ * styles.css can cross-fade colors instead of snapping (skipped on first paint
+ * so initial load never flashes).
+ */
 export function applyAppearance(pref, textSize, mediaQuery) {
   const dark =
     mediaQuery?.matches ??
@@ -62,8 +92,21 @@ export function applyAppearance(pref, textSize, mediaQuery) {
       window.matchMedia('(prefers-color-scheme: dark)').matches)
   const resolved = resolveTheme(pref, dark)
   if (typeof document !== 'undefined') {
-    document.documentElement.dataset.theme = resolved
-    document.documentElement.dataset.textsize = textSize || 'standard'
+    const root = document.documentElement
+    const previous = root.dataset.theme
+    if (previous && previous !== resolved && root.classList) {
+      root.classList.add('theme-anim')
+      if (themeAnimTimer) clearTimeout(themeAnimTimer)
+      themeAnimTimer = setTimeout(() => {
+        root.classList.remove('theme-anim')
+        themeAnimTimer = null
+      }, 420)
+      if (typeof themeAnimTimer === 'object' && themeAnimTimer !== null && 'unref' in themeAnimTimer) {
+        themeAnimTimer.unref() // never hold a test process open
+      }
+    }
+    root.dataset.theme = resolved
+    root.dataset.textsize = textSize || 'standard'
   }
   return resolved
 }

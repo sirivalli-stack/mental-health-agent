@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 /** Small icon set (inline SVG, stroke = currentColor). */
-export function Icon({ name, size = 18 }) {
+export function Icon({ name, size = 18, style }) {
   const paths = {
     plus: <path d="M10 4v12M4 10h12" />,
     search: (
@@ -28,8 +28,21 @@ export function Icon({ name, size = 18 }) {
       </>
     ),
     pencil: <path d="m12.6 3.9 3.5 3.5-8.6 8.6-4.2.7.7-4.2zM11.4 5.1l3.5 3.5" />,
+    copy: (
+      <>
+        <rect x="7" y="7" width="9.5" height="9.5" rx="2" />
+        <path d="M13 4.5H6A1.5 1.5 0 0 0 4.5 6v7" />
+      </>
+    ),
+    refresh: (
+      <>
+        <path d="M15.5 6.5A6 6 0 1 0 16 10" />
+        <path d="M16.5 3.5v3.5H13" />
+      </>
+    ),
     send: <path d="M3.5 10 16.5 4l-4 12-2.6-4.8z" />,
     close: <path d="m5 5 10 10M15 5 5 15" />,
+    check: <path d="m4.5 10.5 3.5 3.5 7.5-8" />,
     menu: <path d="M3.5 6h13M3.5 10h13M3.5 14h13" />,
     user: (
       <>
@@ -59,6 +72,47 @@ export function Icon({ name, size = 18 }) {
         <path d="M7.7 7.8A2 2 0 0 0 10 12a2 2 0 0 0 1.9-1.3M5.2 6.4C3.6 7.6 2.5 10 2.5 10s3 5 7.5 5c1.2 0 2.3-.3 3.2-.8M14.5 12.6c1.6-1.2 3-2.6 3-2.6s-3-5-7.5-5" />
       </>
     ),
+    mic: (
+      <>
+        <rect x="7.5" y="2.5" width="5" height="9" rx="2.5" />
+        <path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v2.5M7 17.5h6" />
+      </>
+    ),
+    play: <path d="M6.5 4.5v11l9-5.5z" />,
+    pause: <path d="M7 4.5v11M13 4.5v11" />,
+    stop: <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" />,
+    volume: (
+      <>
+        <path d="M4 8v4h3l4 3.5v-11L7 8H4z" />
+        <path d="M13.5 7.5a3.5 3.5 0 0 1 0 5M15.5 5.5a6 6 0 0 1 0 9" />
+      </>
+    ),
+    heart: (
+      <path d="M10 16s-6-3.6-6-7.6A3.4 3.4 0 0 1 10 6a3.4 3.4 0 0 1 6 2.4C16 12.4 10 16 10 16z" />
+    ),
+    book: (
+      <>
+        <path d="M4 4.5h5a2 2 0 0 1 2 2V16a2 2 0 0 0-2-2H4z" />
+        <path d="M16 4.5h-5a2 2 0 0 0-2 2V16a2 2 0 0 1 2-2h5z" />
+      </>
+    ),
+    leaf: (
+      <>
+        <path d="M16 4c-7 0-11 3.5-11 8.5a4.5 4.5 0 0 0 4.5 4.5C14.5 17 16 11 16 4z" />
+        <path d="M4.5 17C7 12.5 10 10 13.5 8.5" />
+      </>
+    ),
+    wind: (
+      <>
+        <path d="M3 7.5h8.5a2.5 2.5 0 1 0-2.4-3.2M3 12.5h11a2.5 2.5 0 1 1-2.4 3.2M3 10h6" />
+      </>
+    ),
+    sun: (
+      <>
+        <circle cx="10" cy="10" r="3.5" />
+        <path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4" />
+      </>
+    ),
   }
   return (
     <svg
@@ -71,6 +125,7 @@ export function Icon({ name, size = 18 }) {
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
+      style={style}
     >
       {paths[name] ?? null}
     </svg>

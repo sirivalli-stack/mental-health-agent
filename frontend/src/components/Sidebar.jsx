@@ -87,6 +87,7 @@ export function Sidebar({
   conversations,
   loadingConversations,
   activeId,
+  activeRoute,
   anonymous,
   open,
   onClose,
@@ -162,6 +163,35 @@ export function Sidebar({
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
+      )}
+
+      {!anonymous && (
+        <nav className="side-nav" aria-label="Wellness">
+          <a
+            className={`side-nav-link${activeRoute === 'mood' ? ' active' : ''}`}
+            href="#/mood"
+            onClick={onClose}
+          >
+            <Icon name="heart" size={15} />
+            Mood check-ins
+          </a>
+          <a
+            className={`side-nav-link${activeRoute === 'journal' ? ' active' : ''}`}
+            href="#/journal"
+            onClick={onClose}
+          >
+            <Icon name="book" size={15} />
+            Journal
+          </a>
+          <a
+            className={`side-nav-link${activeRoute === 'wellness' ? ' active' : ''}`}
+            href="#/wellness"
+            onClick={onClose}
+          >
+            <Icon name="leaf" size={15} />
+            Wellness activities
+          </a>
+        </nav>
       )}
 
       {!anonymous && (

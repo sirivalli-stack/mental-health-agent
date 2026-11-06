@@ -9,14 +9,17 @@ import {
   onUnauthorized,
 } from './api.js'
 import { clearToken, readToken, writeToken } from './auth.js'
-import { applyAppearance, readTextSize, readTheme } from './theme.js'
+import { applyAppearance, readTextSize, readTheme, watchSystemTheme } from './theme.js'
 import { currentHash, isAuthRoute, navigate, parseRoute, routes } from './router.js'
 import { AuthScreen } from './components/AuthScreen.jsx'
 import { Chat } from './components/Chat.jsx'
 import { DisclaimerBanner } from './components/DisclaimerBanner.jsx'
 import { Home } from './components/Home.jsx'
+import { JournalPage } from './components/Journal.jsx'
+import { MoodPage } from './components/MoodPage.jsx'
 import { Settings } from './components/Settings.jsx'
 import { Sidebar } from './components/Sidebar.jsx'
+import { WellnessPage } from './components/Wellness.jsx'
 import { BrandMark, Spinner } from './components/ui.jsx'
 
 /** Server conversation row -> the UI shape (camelCase). */
@@ -55,6 +58,10 @@ export default function App() {
   // ---- appearance ---------------------------------------------------------
   useEffect(() => {
     applyAppearance(readTheme(), readTextSize())
+    // live-follow the OS when the preference is "system"
+    return watchSystemTheme(() => {
+      if (readTheme() === 'system') applyAppearance('system', readTextSize())
+    })
   }, [])
 
   // ---- hash routing -------------------------------------------------------
@@ -257,6 +264,7 @@ export default function App() {
         conversations={conversations}
         onNewConversation={newConversation}
         onPickStarter={pickStarter}
+        onOpenMenu={() => setMenuOpen(true)}
       />
     )
   } else if (route.name === 'chat') {
@@ -277,6 +285,8 @@ export default function App() {
       <Settings
         user={user}
         onUserChanged={setUser}
+        onConversationsChanged={refreshConversations}
+        onOpenMenu={() => setMenuOpen(true)}
         onAccountDeleted={() => {
           clearToken()
           setUser(null)
@@ -285,6 +295,12 @@ export default function App() {
         }}
       />
     )
+  } else if (route.name === 'mood') {
+    page = <MoodPage onOpenMenu={() => setMenuOpen(true)} />
+  } else if (route.name === 'journal') {
+    page = <JournalPage onOpenMenu={() => setMenuOpen(true)} />
+  } else if (route.name === 'wellness') {
+    page = <WellnessPage onOpenMenu={() => setMenuOpen(true)} />
   }
 
   return (
@@ -296,6 +312,7 @@ export default function App() {
           conversations={conversations}
           loadingConversations={loadingConversations}
           activeId={activeId}
+          activeRoute={route.name}
           anonymous={!authEnabled}
           open={menuOpen}
           onClose={() => setMenuOpen(false)}
